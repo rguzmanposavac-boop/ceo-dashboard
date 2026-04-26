@@ -1,0 +1,215 @@
+"use client";
+
+import { useMemo } from "react";
+import type { Stock, Signal, Horizon } from "@/lib/types";
+import { SIGNAL_COLORS, HORIZON_LABELS } from "@/lib/constants";
+import { SignalBadge } from "@/app/components/shared/SignalBadge";
+import { useDashboardStore } from "@/stores/dashboardStore";
+
+interface Props {
+  stocks: Stock[];
+  onSelect: (ticker: string) => void;
+  selectedTicker: string | null;
+}
+
+const SIGNALS: Array<Signal | ""> = ["", "COMPRA_FUERTE", "COMPRA", "VIGILAR", "EVITAR"];
+const HORIZONS: Array<Horizon | ""> = ["", "CORTO_PLAZO", "MEDIANO_PLAZO", "LARGO_PLAZO"];
+
+function pct(v: number | null | undefined) {
+  if (v == null) return "—";
+  return `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`;
+}
+
+function price(v: number | null | undefined) {
+  if (v == null) return "—";
+  return `$${v.toFixed(2)}`;
+}
+
+function scoreCell(v: number | null | undefined) {
+  if (v == null) return <span className="text-text-muted">—</span>;
+  const color =
+    v >= 80 ? "#3de88a" : v >= 70 ? "#f5c542" : v >= 58 ? "#ff8c42" : "#ff5e5e";
+  return (
+    <span className="font-mono font-bold text-base" style={{ color }}>
+      {v.toFixed(1)}
+    </span>
+  );
+}
+
+export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
+  const { filters, setFilter, resetFilters } = useDashboardStore();
+
+  const filtered = useMemo(() => {
+    return stocks.filter((s) => {
+      if (filters.signal && s.score?.signal !== filters.signal) return false;
+      if (filters.horizon && s.score?.horizon !== filters.horizon) return false;
+      if (filters.sector && s.sector !== filters.sector) return false;
+      if (filters.min_score != null && (s.score?.final_score ?? 0) < filters.min_score) return false;
+      return true;
+    });
+  }, [stocks, filters]);
+
+  const sectors = useMemo(() => {
+    const set = new Set(stocks.map((s) => s.sector));
+    return Array.from(set).sort();
+  }, [stocks]);
+
+  return (
+    <div
+      className="rounded-lg overflow-hidden"
+      style={{ background: "#0f1b30", border: "1px solid #1e3050" }}
+    >
+      {/* Filter bar */}
+      <div
+        className="flex flex-wrap items-center gap-2 px-4 py-3 border-b"
+        style={{ borderColor: "#1e3050" }}
+      >
+        <span className="text-xs text-text-secondary font-semibold uppercase tracking-widest mr-1">
+          Filtros
+        </span>
+
+        <select
+          className="text-xs px-2 py-1 rounded text-text-primary focus:outline-none"
+          style={{ background: "#111e35", border: "1px solid #1e3050" }}
+          value={filters.signal}
+          onChange={(e) => setFilter("signal", e.target.value as Signal | "")}
+        >
+          {SIGNALS.map((s) => (
+            <option key={s} value={s}>{s || "Todas las señales"}</option>
+          ))}
+        </select>
+
+        <select
+          className="text-xs px-2 py-1 rounded text-text-primary focus:outline-none"
+          style={{ background: "#111e35", border: "1px solid #1e3050" }}
+          value={filters.horizon}
+          onChange={(e) => setFilter("horizon", e.target.value as Horizon | "")}
+        >
+          {HORIZONS.map((h) => (
+            <option key={h} value={h}>{h ? HORIZON_LABELS[h] : "Todos los horizontes"}</option>
+          ))}
+        </select>
+
+        <select
+          className="text-xs px-2 py-1 rounded text-text-primary focus:outline-none"
+          style={{ background: "#111e35", border: "1px solid #1e3050" }}
+          value={filters.sector}
+          onChange={(e) => setFilter("sector", e.target.value)}
+        >
+          <option value="">Todos los sectores</option>
+          {sectors.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <input
+          type="number"
+          placeholder="Score mín."
+          className="text-xs px-2 py-1 rounded text-text-primary focus:outline-none w-24"
+          style={{ background: "#111e35", border: "1px solid #1e3050" }}
+          value={filters.min_score ?? ""}
+          onChange={(e) => setFilter("min_score", e.target.value ? Number(e.target.value) : null)}
+        />
+
+        {(filters.signal || filters.horizon || filters.sector || filters.min_score) && (
+          <button
+            onClick={resetFilters}
+            className="text-xs px-2 py-1 rounded text-text-secondary hover:text-text-primary transition-colors"
+            style={{ border: "1px solid #1e3050" }}
+          >
+            Limpiar
+          </button>
+        )}
+
+        <span className="ml-auto text-xs text-text-secondary">
+          {filtered.length} / {stocks.length} acciones
+        </span>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr
+              className="text-left text-xs text-text-secondary uppercase tracking-wider"
+              style={{ borderBottom: "1px solid #1e3050" }}
+            >
+              <th className="px-4 py-3">Ticker</th>
+              <th className="px-4 py-3">Empresa</th>
+              <th className="px-4 py-3">Sector</th>
+              <th className="px-4 py-3 text-right">Precio</th>
+              <th className="px-4 py-3 text-right">Var%</th>
+              <th className="px-4 py-3 text-right">Score</th>
+              <th className="px-4 py-3">Señal</th>
+              <th className="px-4 py-3">Horizonte</th>
+              <th className="px-4 py-3 text-right">Ret. Est.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((stock) => {
+              const isSelected = stock.ticker === selectedTicker;
+              const retLow = stock.score?.expected_return_low;
+              const retHigh = stock.score?.expected_return_high;
+              const retStr =
+                retLow != null && retHigh != null
+                  ? `${pct(retLow)} – ${pct(retHigh)}`
+                  : "—";
+              const changePct = stock.change_pct;
+              const changeColor =
+                changePct == null ? "#7090b0" : changePct >= 0 ? "#3de88a" : "#ff5e5e";
+
+              return (
+                <tr
+                  key={stock.ticker}
+                  onClick={() => onSelect(stock.ticker)}
+                  className="cursor-pointer transition-colors"
+                  style={{
+                    borderBottom: "1px solid #1e3050",
+                    background: isSelected ? "#1a2d4a" : "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = "#111e35";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = "transparent";
+                  }}
+                >
+                  <td className="px-4 py-3 font-mono font-bold text-blue-400">
+                    {stock.ticker}
+                  </td>
+                  <td className="px-4 py-3 text-text-primary max-w-[180px] truncate">
+                    {stock.company}
+                  </td>
+                  <td className="px-4 py-3 text-text-secondary text-xs">{stock.sector}</td>
+                  <td className="px-4 py-3 text-right font-mono text-text-primary">
+                    {price(stock.current_price)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-sm" style={{ color: changeColor }}>
+                    {changePct != null
+                      ? `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right">{scoreCell(stock.score?.final_score)}</td>
+                  <td className="px-4 py-3">
+                    <SignalBadge signal={stock.score?.signal} size="sm" />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-text-secondary">
+                    {stock.score?.horizon ? HORIZON_LABELS[stock.score.horizon] : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right text-xs font-mono text-text-secondary">
+                    {retStr}
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={9} className="px-4 py-10 text-center text-text-secondary">
+                  No hay acciones con los filtros seleccionados
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

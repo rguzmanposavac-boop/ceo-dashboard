@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary:    #0a0e1a;
+  --bg-secondary:  #0f1b30;
+  --bg-card:       #111e35;
+  --border:        #1e3050;
+  --blue:          #5ba4ff;
+  --green:         #3de88a;
+  --yellow:        #f5c542;
+  --orange:        #ff8c42;
+  --red:           #ff5e5e;
+  --text-primary:  #e0e6f0;
+  --text-secondary:#7090b0;
+  --text-muted:    #3a5070;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "Inter", system-ui, sans-serif;
+}
