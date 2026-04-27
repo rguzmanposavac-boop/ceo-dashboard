@@ -31,6 +31,8 @@ logging.config.dictConfig({
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import stocks, regime, catalysts, ceos, scores
+from app.routers import config as config_router
+from app.routers import refresh as refresh_router
 from app.security import require_api_key
 
 log = logging.getLogger(__name__)
@@ -77,7 +79,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://wonderful-tranquility-production-d363.up.railway.app",
+        "https://*.railway.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -88,6 +95,8 @@ app.include_router(regime.router)
 app.include_router(catalysts.router)
 app.include_router(ceos.router)
 app.include_router(scores.router)
+app.include_router(config_router.router)
+app.include_router(refresh_router.router)
 
 
 # ---------------------------------------------------------------------------
