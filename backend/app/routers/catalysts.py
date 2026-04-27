@@ -1,12 +1,15 @@
 import logging
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 
 from app.database import get_db
 from app.models.catalyst import Catalyst
-from app.models.stock import Stock
+from app.models.stock import Stock, PriceCache
+from app.models.price_history import PriceHistory
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/catalysts", tags=["catalysts"])
@@ -34,7 +37,14 @@ def _catalyst_to_dict(c: Catalyst) -> dict:
         "expected_window":  c.expected_window,
         "is_active":        c.is_active,
         "detected_at":      c.detected_at.isoformat() if c.detected_at else None,
+        "last_reviewed":    c.last_reviewed.isoformat() if c.last_reviewed else None,
     }
+
+
+def _next_monday(from_dt: datetime) -> str:
+    """Return the ISO date of the next Monday (never today even if today is Monday)."""
+    days_ahead = (7 - from_dt.weekday()) % 7 or 7
+    return (from_dt + timedelta(days=days_ahead)).date().isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +86,162 @@ def get_catalyst_score(ticker: str, all: bool = False, db: Session = Depends(get
         ticker.upper(), stock.sector, stock.universe_level or 1, db
     )
     return {"ticker": ticker.upper(), "sector": stock.sector, **result}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/catalysts/review-pending
+# Must be before /{catalyst_id} — FastAPI matches paths top-down.
+# ---------------------------------------------------------------------------
+
+@router.post("/review-pending")
+def review_pending(db: Session = Depends(get_db)):
+    """Return active catalysts not reviewed in the past 7 days and mark them reviewed.
+
+    Response:
+      pending_catalysts  — list of catalysts awaiting review
+      last_review        — ISO date of the most-recent review across all active catalysts
+      next_review        — next Monday date (ISO)
+      status             — "Es hora de revisar" | "Revisado recientemente"
+    """
+    now     = datetime.utcnow()
+    cutoff  = now - timedelta(days=7)
+
+    pending: list[Catalyst] = (
+        db.query(Catalyst)
+        .filter(
+            Catalyst.is_active.is_(True),
+            or_(Catalyst.last_reviewed.is_(None), Catalyst.last_reviewed < cutoff),
+        )
+        .order_by(Catalyst.detected_at.desc())
+        .all()
+    )
+
+    # Most recent last_reviewed across ALL active catalysts
+    last_review_ts = (
+        db.query(func.max(Catalyst.last_reviewed))
+        .filter(Catalyst.is_active.is_(True))
+        .scalar()
+    )
+
+    # Stamp all pending catalysts as reviewed now
+    for c in pending:
+        c.last_reviewed = now
+    db.commit()
+
+    return {
+        "pending_catalysts": [_catalyst_to_dict(c) for c in pending],
+        "last_review":       last_review_ts.date().isoformat() if last_review_ts else None,
+        "next_review":       _next_monday(now),
+        "status":            "Es hora de revisar" if pending else "Revisado recientemente",
+    }
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/catalysts/review-status
+# ---------------------------------------------------------------------------
+
+@router.get("/review-status")
+def review_status(db: Session = Depends(get_db)):
+    """Flag active catalysts that may be priced-in or stale.
+
+    Priced-in  — any affected ticker has risen >25 % since the catalyst was detected.
+    Stale      — catalyst not reviewed in the last 6 months (180 days).
+
+    For price comparison the endpoint uses price_history (if synced) and falls
+    back to price_cache for the reference price at detection date.
+    """
+    now          = datetime.utcnow()
+    stale_cutoff = now - timedelta(days=180)
+
+    catalysts: list[Catalyst] = (
+        db.query(Catalyst).filter(Catalyst.is_active.is_(True)).all()
+    )
+
+    flagged = []
+
+    for c in catalysts:
+        reasons:       list[str]  = []
+        price_changes: list[dict] = []
+
+        # ── Stale check ──────────────────────────────────────────────────────
+        ref_ts = c.last_reviewed or c.detected_at
+        if ref_ts and ref_ts < stale_cutoff:
+            reasons.append("STALE")
+
+        # ── Priced-in check (up to 3 affected tickers) ───────────────────────
+        for ticker in (c.affected_tickers or [])[:3]:
+            ticker = ticker.upper()
+
+            # Reference price: first trading day within ±5 days of detected_at
+            hist_row = (
+                db.query(PriceHistory.close, PriceHistory.date)
+                .filter(
+                    PriceHistory.ticker == ticker,
+                    PriceHistory.date   >= (c.detected_at - timedelta(days=5)),
+                    PriceHistory.date   <= (c.detected_at + timedelta(days=5)),
+                )
+                .order_by(PriceHistory.date)
+                .first()
+            )
+            # Fall back to price_cache if price_history not populated
+            if hist_row is None:
+                fallback = (
+                    db.query(PriceCache.close_price, PriceCache.price_date)
+                    .filter(PriceCache.ticker == ticker)
+                    .order_by(PriceCache.price_date)
+                    .first()
+                )
+                if fallback:
+                    hist_row = (fallback[0], fallback[1])
+
+            # Current price
+            cur = (
+                db.query(PriceCache.close_price)
+                .filter(PriceCache.ticker == ticker)
+                .order_by(PriceCache.price_date.desc())
+                .first()
+            )
+
+            if hist_row and cur and hist_row[0] and cur[0] and hist_row[0] > 0:
+                pct = (cur[0] - hist_row[0]) / hist_row[0]
+                ref_date = (
+                    hist_row[1].date().isoformat()
+                    if hasattr(hist_row[1], "date") else str(hist_row[1])
+                )
+                price_changes.append({
+                    "ticker":      ticker,
+                    "ref_price":   round(float(hist_row[0]), 2),
+                    "cur_price":   round(float(cur[0]),      2),
+                    "pct_change":  round(pct, 4),
+                    "since_date":  ref_date,
+                })
+                if pct > 0.25 and "PRICED_IN" not in reasons:
+                    reasons.append("PRICED_IN")
+
+        if not reasons:
+            continue
+
+        days_since = (
+            (now - c.last_reviewed).days if c.last_reviewed
+            else (now - c.detected_at).days if c.detected_at
+            else None
+        )
+
+        flagged.append({
+            **_catalyst_to_dict(c),
+            "reasons":            sorted(set(reasons)),
+            "days_since_reviewed": days_since,
+            "price_changes":      price_changes,
+        })
+
+    # Sort: most reasons first, then oldest first
+    flagged.sort(key=lambda x: (-len(x["reasons"]), x["days_since_reviewed"] or 0), reverse=False)
+
+    return {
+        "flagged_count":      len(flagged),
+        "flagged_catalysts":  flagged,
+        "checked_at":         now.isoformat(),
+    }
 
 
 # ---------------------------------------------------------------------------

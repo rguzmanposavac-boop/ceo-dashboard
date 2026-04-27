@@ -1,5 +1,5 @@
 import logging
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 import yfinance as yf
@@ -87,6 +87,68 @@ def fetch_price_history(ticker: str, period: str = "1y") -> list[dict]:
         prev_close = close_f
 
     return result
+
+
+def fetch_and_store_price_history(ticker: str, db, days: int = 5 * 365) -> dict:
+    """Download up to 5 years of daily OHLCV and bulk-upsert into price_history.
+
+    Returns {ticker, inserted, skipped, total}.
+    Duplicates (same stock_id + date) are silently ignored.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from app.models.price_history import PriceHistory
+    from app.models.stock import Stock
+
+    ticker = ticker.upper()
+
+    stock = db.query(Stock).filter(Stock.ticker == ticker).first()
+    if not stock:
+        raise ValueError(f"Ticker '{ticker}' not in stocks table — seed first")
+
+    period_str = "5y" if days >= 1825 else f"{days}d"
+    t = yf.Ticker(ticker)
+    hist = t.history(period=period_str, interval="1d", auto_adjust=True)
+
+    if hist.empty:
+        log.warning("[price_history] No data returned for %s (period=%s)", ticker, period_str)
+        return {"ticker": ticker, "inserted": 0, "skipped": 0, "total": 0}
+
+    rows: list[dict] = []
+    for ts, row in hist.iterrows():
+        close_val = row.get("Close")
+        if close_val is None or pd.isna(close_val):
+            continue
+        # Normalize to naive datetime (UTC) — yfinance may return tz-aware timestamps
+        ts_naive: datetime = ts.to_pydatetime().replace(tzinfo=None)
+        rows.append({
+            "stock_id": stock.id,
+            "ticker":   ticker,
+            "date":     ts_naive,
+            "open":     float(row["Open"])   if not pd.isna(row.get("Open",   float("nan"))) else None,
+            "high":     float(row["High"])   if not pd.isna(row.get("High",   float("nan"))) else None,
+            "low":      float(row["Low"])    if not pd.isna(row.get("Low",    float("nan"))) else None,
+            "close":    round(float(close_val), 4),
+            "volume":   int(row["Volume"]) if not pd.isna(row.get("Volume", float("nan"))) else None,
+        })
+
+    if not rows:
+        return {"ticker": ticker, "inserted": 0, "skipped": 0, "total": 0}
+
+    stmt = (
+        pg_insert(PriceHistory)
+        .values(rows)
+        .on_conflict_do_nothing(constraint="uq_price_history_stock_date")
+    )
+    result = db.execute(stmt)
+    db.commit()
+
+    inserted = result.rowcount if result.rowcount != -1 else len(rows)
+    skipped  = len(rows) - inserted
+    log.info(
+        "[price_history] %s: %d rows total, %d inserted, %d skipped (dupes)",
+        ticker, len(rows), inserted, skipped,
+    )
+    return {"ticker": ticker, "inserted": inserted, "skipped": skipped, "total": len(rows)}
 
 
 def fetch_bulk_price_history(tickers: list[str], period: str = "1y") -> dict[str, list[dict]]:

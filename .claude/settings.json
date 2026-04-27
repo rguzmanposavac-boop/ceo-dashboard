@@ -76,7 +76,26 @@
       "Bash(curl -s \"http://localhost:8000/api/v1/stocks?signal=COMPRA_FUERTE\")",
       "Bash(python -c \"import sys,json; stocks=json.load\\(sys.stdin\\); print\\(len\\(stocks\\), 'results'\\)\")",
       "Bash(curl -s \"http://localhost:8000/api/v1/stocks?signal=COMPRA\")",
-      "Bash(python -c \"import sys,json; stocks=json.load\\(sys.stdin\\); print\\(len\\(stocks\\), 'COMPRA'\\); [print\\(' ', s['ticker'], s['score']['final_score'], s['score']['signal']\\) for s in stocks[:5]]\")"
+      "Bash(python -c \"import sys,json; stocks=json.load\\(sys.stdin\\); print\\(len\\(stocks\\), 'COMPRA'\\); [print\\(' ', s['ticker'], s['score']['final_score'], s['score']['signal']\\) for s in stocks[:5]]\")",
+      "Bash(curl -s http://localhost:8000/api/v1/config/refresh-schedule)",
+      "Bash(curl -s http://localhost:8000/api/v1/admin/scheduler/status)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/refresh/prices)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/refresh/scores)",
+      "Bash(curl -s \"http://localhost:8000/api/v1/stocks/NVDA/prices?timeframe=5D\")",
+      "Bash(curl -s \"http://localhost:8000/api/v1/stocks/AAPL/prices?timeframe=1D\")",
+      "Bash(curl -s \"http://localhost:8000/api/v1/stocks/MSFT/prices?timeframe=5Y\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/v1/stocks/NVDA/sync-price-history?days=365\")",
+      "Bash(curl -s \"http://localhost:8000/api/v1/stocks/NVDA/prices?timeframe=1M&start_date=2026-03-01&end_date=2026-04-27\")",
+      "Bash(curl -s \"http://localhost:8000/api/v1/stocks/AAPL/prices?timeframe=5Y\")",
+      "Bash(curl -s \"http://localhost:8000/api/v1/stocks/NVDA/prices?timeframe=1D\")",
+      "Bash(curl -s -X POST \"http://localhost:8000/api/v1/stocks/NVDA/sync-price-history\")",
+      "Bash(curl -s \"http://localhost:8000/api/v1/stocks/NVDA/prices?timeframe=5Y\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'{len\\(d\\)} weekly bars'\\)\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/catalysts/review-pending)",
+      "Bash(curl -s http://localhost:8000/api/v1/catalysts/review-status)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

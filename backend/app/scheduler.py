@@ -14,15 +14,21 @@ Redis fallback strategy:
   - After every successful fetch, write to Redis with TTL
   - On yfinance/SEC failure, try Redis; log warning if missing
   - Prices TTL: 2h  |  Financials/Insiders TTL: 24h
+
+Sprint 10: Dynamic rescheduling via apply_refresh_config().
+  Supported intervals: manual | 1min | 5min | 1hour | daily
+  'manual' pauses the job until POST /api/v1/refresh/{prices,scores} fires it.
 """
 import json
 import logging
 import os
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 
 import redis as redis_lib
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 log = logging.getLogger(__name__)
 
@@ -96,11 +102,12 @@ def job_refresh_prices() -> None:
 
     updated = 0
     failed  = 0
+    now_utc = datetime.now(timezone.utc)
 
     for ticker in tickers:
         try:
             data = fetch_current_price(ticker)
-            # Persist to price_cache
+            # Persist to price_cache (with freshness timestamp)
             with _db_session() as db:
                 stmt = (
                     pg_insert(PriceCache)
@@ -110,6 +117,7 @@ def job_refresh_prices() -> None:
                         close_price= data["price"],
                         volume     = data["volume"],
                         change_pct = data["change_pct"],
+                        fetched_at = now_utc,
                     )
                     .on_conflict_do_update(
                         constraint="uq_price_cache_ticker_date",
@@ -117,6 +125,7 @@ def job_refresh_prices() -> None:
                             close_price= data["price"],
                             volume     = data["volume"],
                             change_pct = data["change_pct"],
+                            fetched_at = now_utc,
                         ),
                     )
                 )
@@ -135,6 +144,9 @@ def job_refresh_prices() -> None:
                 log.info("[sched] price fallback active for %s (Redis hit)", ticker)
             else:
                 log.error("[sched] no Redis fallback for %s price", ticker)
+
+    # Record global freshness timestamp in Redis
+    cache_set("prices:last_update", now_utc.isoformat(), ttl=86400)
 
     log.info("[sched] refresh_prices DONE — updated=%d failed=%d / %d tickers",
              updated, failed, len(tickers))
@@ -206,6 +218,7 @@ def job_refresh_scores() -> None:
             else:
                 log.error("[sched] no Redis fallback for %s score", ticker)
 
+    cache_set("scores:last_update", datetime.now(timezone.utc).isoformat(), ttl=86400)
     log.info("[sched] refresh_scores DONE — ok=%d failed=%d / %d tickers",
              ok, failed, len(tickers))
 
@@ -262,10 +275,94 @@ def job_refresh_insiders() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Scheduler factory
+# Job 6: review_catalysts_reminder  (weekly Monday 9:30 AM ET)
+# ---------------------------------------------------------------------------
+
+def job_review_catalysts_reminder() -> None:
+    """Weekly Monday reminder: log alert + mark active catalysts as reviewed."""
+    log.info("📋 Recordatorio: Es hora de revisar catalysts")
+    from app.models.catalyst import Catalyst
+
+    with _db_session() as db:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        cutoff = now - timedelta(days=7)
+        pending = (
+            db.query(Catalyst)
+            .filter(
+                Catalyst.is_active.is_(True),
+                (Catalyst.last_reviewed.is_(None)) | (Catalyst.last_reviewed < cutoff),
+            )
+            .all()
+        )
+        for c in pending:
+            c.last_reviewed = now
+        db.commit()
+        log.info("📋 Catalysts revisados: %d actualizados", len(pending))
+
+
+# ---------------------------------------------------------------------------
+# Dynamic rescheduling (Sprint 10)
 # ---------------------------------------------------------------------------
 
 _ET = "America/New_York"
+
+_DEFAULT_TRIGGERS: dict[str, object] = {}  # populated in create_scheduler
+
+
+def _interval_to_trigger(interval_str: str, job_id: str):
+    """Return an APScheduler trigger for the given interval string.
+
+    Returns None when interval_str is 'manual' (caller should pause the job).
+    Falls back to the original market-hours CronTrigger for '1hour'.
+    """
+    if interval_str == "manual":
+        return None
+    if interval_str == "1min":
+        return IntervalTrigger(minutes=1, timezone=_ET)
+    if interval_str == "5min":
+        return IntervalTrigger(minutes=5, timezone=_ET)
+    if interval_str == "1hour":
+        # Restore the default market-hours trigger for this job, if known
+        return _DEFAULT_TRIGGERS.get(job_id) or IntervalTrigger(hours=1, timezone=_ET)
+    if interval_str == "daily":
+        # Fire once per day at 9:30 AM ET (market open) Mon-Fri
+        minute = "30" if job_id == "refresh_prices" else "40"
+        return CronTrigger(day_of_week="mon-fri", hour="9", minute=minute, timezone=_ET)
+    # Unknown value — fall back to hourly interval
+    log.warning("Unknown interval '%s' for job %s, defaulting to 1hour", interval_str, job_id)
+    return _DEFAULT_TRIGGERS.get(job_id) or IntervalTrigger(hours=1, timezone=_ET)
+
+
+def apply_refresh_config(scheduler: BackgroundScheduler, config) -> None:
+    """Reschedule or pause refresh_prices and refresh_scores based on RefreshConfig."""
+    pairs = [
+        ("refresh_prices", config.price_refresh_interval),
+        ("refresh_scores", config.score_refresh_interval),
+    ]
+    for job_id, interval in pairs:
+        job = scheduler.get_job(job_id)
+        if job is None:
+            log.warning("apply_refresh_config: job '%s' not found in scheduler", job_id)
+            continue
+
+        trigger = _interval_to_trigger(interval, job_id)
+        if trigger is None:
+            job.pause()
+            log.info("apply_refresh_config: '%s' PAUSED (interval=manual)", job_id)
+        else:
+            # Resume first if the job was paused, then reschedule
+            if job.next_run_time is None:
+                job.resume()
+            scheduler.reschedule_job(job_id, trigger=trigger)
+            log.info(
+                "apply_refresh_config: '%s' rescheduled to interval='%s'",
+                job_id, interval,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Scheduler factory
+# ---------------------------------------------------------------------------
 
 #  Market-hours cron: Mon-Fri, hours 9-15 (fires at 9:30, 10:30 … 15:30 ET)
 #  The three jobs are staggered by 5 minutes so they run in sequence:
@@ -289,9 +386,18 @@ _DAILY_INSIDERS_TRIGGER = CronTrigger(
     day_of_week="mon-fri", hour="6", minute="30", timezone=_ET
 )
 
+# Weekly catalyst review reminder: every Monday 9:30 AM ET
+_WEEKLY_CATALYSTS_TRIGGER = CronTrigger(
+    day_of_week="mon", hour="9", minute="30", timezone=_ET
+)
+
 
 def create_scheduler() -> BackgroundScheduler:
     """Create and configure the APScheduler BackgroundScheduler with all 5 jobs."""
+    # Register default triggers so apply_refresh_config can restore them
+    _DEFAULT_TRIGGERS["refresh_prices"] = _MARKET_PRICES_TRIGGER
+    _DEFAULT_TRIGGERS["refresh_scores"] = _MARKET_SCORES_TRIGGER
+
     scheduler = BackgroundScheduler(timezone=_ET)
 
     common = dict(max_instances=1, coalesce=True, misfire_grace_time=300)
@@ -315,7 +421,7 @@ def create_scheduler() -> BackgroundScheduler:
         trigger   = _MARKET_SCORES_TRIGGER,
         id        = "refresh_scores",
         name      = "Refresh Scores (market hours, :40)",
-        misfire_grace_time=600,   # scores can take up to 2 min — wider window
+        misfire_grace_time=600,
         max_instances=1,
         coalesce  = True,
     )
@@ -337,5 +443,29 @@ def create_scheduler() -> BackgroundScheduler:
         coalesce  = True,
         misfire_grace_time=1800,
     )
+    scheduler.add_job(
+        job_review_catalysts_reminder,
+        trigger   = _WEEKLY_CATALYSTS_TRIGGER,
+        id        = "review_catalysts",
+        name      = "Review Catalysts Reminder (Monday 09:30 ET)",
+        max_instances=1,
+        coalesce  = True,
+        misfire_grace_time=3600,
+    )
+
+    # Apply persisted config on startup (if DB is reachable)
+    try:
+        with _db_session() as db:
+            from app.models.refresh_config import RefreshConfig
+            cfg = db.query(RefreshConfig).first()
+            if cfg:
+                apply_refresh_config(scheduler, cfg)
+                log.info(
+                    "Loaded RefreshConfig from DB: prices=%s scores=%s",
+                    cfg.price_refresh_interval,
+                    cfg.score_refresh_interval,
+                )
+    except Exception as exc:
+        log.warning("Could not load RefreshConfig at startup (DB not ready?): %s", exc)
 
     return scheduler

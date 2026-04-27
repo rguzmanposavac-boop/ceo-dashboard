@@ -1,4 +1,4 @@
-import type { Stock, Catalyst, RegimeStatus, PricePoint, InsidersResponse, ModelStats } from "./types";
+import type { Stock, Catalyst, RegimeStatus, PricePoint, InsidersResponse, ModelStats, RefreshConfig, RefreshInterval } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -32,6 +32,10 @@ export const api = {
     get: (ticker: string) => get<Stock>(`/api/v1/stocks/${ticker}`),
     priceHistory: (ticker: string, limit = 90) =>
       get<PricePoint[]>(`/api/v1/stocks/${ticker}/price-history?limit=${limit}`),
+    pricesByTimeframe: (ticker: string, timeframe: string) =>
+      get<{ ts: string; close: number; volume: number | null }[]>(
+        `/api/v1/stocks/${ticker}/prices?timeframe=${timeframe}`
+      ),
     insiders: (ticker: string, days = 90) =>
       get<InsidersResponse>(`/api/v1/insiders/${ticker}?days=${days}`),
   },
@@ -56,5 +60,32 @@ export const api = {
   admin: {
     modelStats: () => get<ModelStats>("/api/v1/admin/model-stats"),
     runBacktest: () => post<ModelStats & { status: string }>("/api/v1/admin/run-backtest"),
+  },
+  config: {
+    getRefreshSchedule: () => get<RefreshConfig>("/api/v1/config/refresh-schedule"),
+    setRefreshSchedule: (body: {
+      price_refresh_interval: RefreshInterval;
+      score_refresh_interval: RefreshInterval;
+      catalyst_auto_review: boolean;
+    }) => post<RefreshConfig>("/api/v1/config/refresh-schedule", body),
+    updateRefreshSchedule: (body: {
+      price_refresh_interval: RefreshInterval;
+      score_refresh_interval: RefreshInterval;
+      catalyst_auto_review: boolean;
+    }) => {
+      const res = fetch(`${BASE}/api/v1/config/refresh-schedule`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res.then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}: /api/v1/config/refresh-schedule`);
+        return r.json() as Promise<RefreshConfig>;
+      });
+    },
+  },
+  refresh: {
+    prices: () => post<{ status: string; job: string; message: string }>("/api/v1/refresh/prices"),
+    scores: () => post<{ status: string; job: string; message: string }>("/api/v1/refresh/scores"),
   },
 };

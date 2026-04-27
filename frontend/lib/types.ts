@@ -1,4 +1,14 @@
 export type Signal = "COMPRA_FUERTE" | "COMPRA" | "VIGILAR" | "EVITAR";
+export type RefreshInterval = "manual" | "1min" | "5min" | "1hour" | "daily";
+
+export interface RefreshConfig {
+  price_refresh_interval: RefreshInterval;
+  score_refresh_interval: RefreshInterval;
+  catalyst_auto_review: boolean;
+  updated_at: string | null;
+  last_price_update: string | null;
+  last_score_update: string | null;
+}
 export type Horizon = "CORTO_PLAZO" | "MEDIANO_PLAZO" | "LARGO_PLAZO";
 export type Regime = "CRISIS" | "BAJISTA" | "NORMAL" | "ALCISTA" | "REBOTE";
 

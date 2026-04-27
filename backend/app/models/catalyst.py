@@ -16,3 +16,4 @@ class Catalyst(Base):
     expected_window = Column(String(20))  # INMEDIATO|PROXIMO|FUTURO|INCIERTO
     is_active = Column(Boolean, default=True)
     detected_at = Column(DateTime, server_default=func.now())
+    last_reviewed = Column(DateTime, nullable=True)

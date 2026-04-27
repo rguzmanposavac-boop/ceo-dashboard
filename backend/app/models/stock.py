@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Date, Float, Integer, String, BigInteger
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, String, BigInteger
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -28,3 +28,4 @@ class PriceCache(Base):
     close_price = Column(Float)
     volume = Column(BigInteger)
     change_pct = Column(Float)
+    fetched_at = Column(DateTime)

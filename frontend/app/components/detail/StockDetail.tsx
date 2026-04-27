@@ -6,7 +6,7 @@ import { SIGNAL_COLORS, HORIZON_LABELS } from "@/lib/constants";
 import type { Stock, InsidersResponse, Catalyst } from "@/lib/types";
 import { SignalBadge } from "@/app/components/shared/SignalBadge";
 import { ScoreBar } from "@/app/components/shared/ScoreBar";
-import { MiniChart } from "@/app/components/shared/MiniChart";
+import { PriceChart } from "./PriceChart";
 import { ScoreBreakdown } from "./ScoreBreakdown";
 import { InvalidatorsList } from "./InvalidatorsList";
 
@@ -105,9 +105,9 @@ export function StockDetail({ ticker, onClose }: Props) {
         </button>
       </div>
 
-      {/* Price + sparkline */}
+      {/* Price + interactive chart */}
       <Section title="Precio">
-        <div className="flex items-baseline gap-2 mb-2">
+        <div className="flex items-baseline gap-2 mb-3">
           <span className="text-2xl font-mono font-bold text-text-primary">
             {stock.current_price != null ? `$${stock.current_price.toFixed(2)}` : "—"}
           </span>
@@ -120,7 +120,7 @@ export function StockDetail({ ticker, onClose }: Props) {
             </span>
           )}
         </div>
-        <MiniChart ticker={ticker} height={56} />
+        <PriceChart ticker={ticker} />
       </Section>
 
       {/* Score summary */}

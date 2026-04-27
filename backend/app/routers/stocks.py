@@ -1,11 +1,13 @@
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.database import get_db
 from app.models.stock import Stock, PriceCache
+from app.models.price_history import PriceHistory
 from app.models.ceo import CEO
 from app.models.score import ScoreSnapshot
 from app.data.sec_fetcher import fetch_insider_transactions
@@ -171,6 +173,220 @@ def get_price_history(ticker: str, limit: int = 252, db: Session = Depends(get_d
         }
         for r in rows
     ]
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers for /prices
+# ---------------------------------------------------------------------------
+
+_TIMEFRAME_YFINANCE: dict[str, tuple[str, str]] = {
+    "1D":  ("1d",  "1m"),
+    "5D":  ("5d",  "5m"),
+    "15D": ("15d", "1d"),
+    "1M":  ("1mo", "1d"),
+    "6M":  ("6mo", "1d"),
+    "1Y":  ("1y",  "1d"),
+    "5Y":  ("5y",  "1d"),
+}
+
+_TIMEFRAME_DAYS: dict[str, int] = {
+    "1D": 1, "5D": 5, "15D": 15, "1M": 30,
+    "6M": 180, "1Y": 365, "5Y": 1825,
+}
+
+# Intraday timeframes: cannot be served from daily price_history
+_INTRADAY = {"1D", "5D"}
+
+
+def _fetch_from_yfinance(ticker: str, timeframe: str) -> list[dict]:
+    import yfinance as yf
+    import pandas as pd
+
+    period, interval = _TIMEFRAME_YFINANCE[timeframe]
+    try:
+        hist = yf.Ticker(ticker.upper()).history(
+            period=period, interval=interval, auto_adjust=True
+        )
+    except Exception as exc:
+        log.error("[prices] yfinance error for %s (%s): %s", ticker, timeframe, exc)
+        raise HTTPException(503, f"yfinance error: {exc}")
+
+    if hist.empty:
+        return []
+
+    result: list[dict] = []
+    for ts, row in hist.iterrows():
+        close = row.get("Close")
+        vol   = row.get("Volume")
+        if close is None or pd.isna(close):
+            continue
+        result.append({
+            "ts":     ts.isoformat(),
+            "open":   round(float(row["Open"]),  4) if not pd.isna(row.get("Open",  float("nan"))) else None,
+            "high":   round(float(row["High"]),  4) if not pd.isna(row.get("High",  float("nan"))) else None,
+            "low":    round(float(row["Low"]),   4) if not pd.isna(row.get("Low",   float("nan"))) else None,
+            "close":  round(float(close), 4),
+            "volume": int(vol) if vol is not None and not pd.isna(vol) else None,
+        })
+    return result
+
+
+def _resample_weekly(rows: list[PriceHistory]) -> list[dict]:
+    """Aggregate daily rows to weekly OHLCV bars using pandas."""
+    import pandas as pd
+
+    if not rows:
+        return []
+
+    df = pd.DataFrame(
+        [
+            {
+                "date":   r.date,
+                "open":   r.open,
+                "high":   r.high,
+                "low":    r.low,
+                "close":  r.close,
+                "volume": r.volume or 0,
+            }
+            for r in rows
+        ]
+    ).set_index("date")
+
+    weekly = (
+        df.resample("W")
+        .agg({"open": "first", "high": "max", "low": "min",
+              "close": "last", "volume": "sum"})
+        .dropna(subset=["close"])
+    )
+
+    return [
+        {
+            "ts":     idx.isoformat(),
+            "open":   round(float(r["open"]),  4) if pd.notna(r["open"])  else None,
+            "high":   round(float(r["high"]),  4) if pd.notna(r["high"])  else None,
+            "low":    round(float(r["low"]),   4) if pd.notna(r["low"])   else None,
+            "close":  round(float(r["close"]), 4),
+            "volume": int(r["volume"]),
+        }
+        for idx, r in weekly.iterrows()
+    ]
+
+
+# ---------------------------------------------------------------------------
+# GET /prices — with optional date-range DB lookup
+# ---------------------------------------------------------------------------
+
+@router.get("/{ticker}/prices")
+def get_prices_timeframe(
+    ticker: str,
+    timeframe: str = Query("1M"),
+    start_date: Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
+    end_date:   Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    """Return OHLCV price data for a ticker.
+
+    Resolution per timeframe:
+      1D  → 1-min bars  (always live from yfinance)
+      5D  → 5-min bars  (always live from yfinance)
+      15D / 1M / 6M / 1Y → daily bars
+      5Y  → weekly bars (aggregated from daily price_history)
+
+    When start_date / end_date are supplied the data is read from the
+    price_history DB table (populated via POST /{ticker}/sync-price-history).
+    Intraday timeframes (1D, 5D) ignore date params and always fetch live.
+    Falls back to yfinance when the DB has no rows for the requested range.
+    """
+    if timeframe not in _TIMEFRAME_YFINANCE:
+        raise HTTPException(
+            400,
+            f"Invalid timeframe '{timeframe}'. Allowed: {sorted(_TIMEFRAME_YFINANCE)}",
+        )
+
+    # Intraday — always live, date params ignored
+    if timeframe in _INTRADAY:
+        return _fetch_from_yfinance(ticker, timeframe)
+
+    # Parse / default date bounds
+    try:
+        end_dt   = datetime.fromisoformat(end_date)   if end_date   else datetime.utcnow()
+        start_dt = datetime.fromisoformat(start_date) if start_date else (
+            end_dt - timedelta(days=_TIMEFRAME_DAYS[timeframe])
+        )
+    except ValueError as exc:
+        raise HTTPException(400, f"Invalid date format: {exc}")
+
+    # Query price_history
+    rows: list[PriceHistory] = (
+        db.query(PriceHistory)
+        .filter(
+            PriceHistory.ticker == ticker.upper(),
+            PriceHistory.date   >= start_dt,
+            PriceHistory.date   <= end_dt,
+        )
+        .order_by(PriceHistory.date)
+        .all()
+    )
+
+    if not rows:
+        # DB has no history — fall back to yfinance live
+        log.info("[prices] No DB history for %s (%s) — falling back to yfinance", ticker, timeframe)
+        return _fetch_from_yfinance(ticker, timeframe)
+
+    # 5Y → aggregate to weekly bars for manageable payload size
+    if timeframe == "5Y":
+        return _resample_weekly(rows)
+
+    return [
+        {
+            "ts":     r.date.isoformat(),
+            "open":   r.open,
+            "high":   r.high,
+            "low":    r.low,
+            "close":  r.close,
+            "volume": r.volume,
+        }
+        for r in rows
+    ]
+
+
+# ---------------------------------------------------------------------------
+# POST /sync-price-history — download 5 years and store
+# ---------------------------------------------------------------------------
+
+@router.post("/{ticker}/sync-price-history")
+def sync_price_history(
+    ticker: str,
+    background_tasks: BackgroundTasks,
+    days: int = Query(5 * 365, ge=30, le=5 * 365),
+    db: Session = Depends(get_db),
+):
+    """Trigger a 5-year OHLCV download for a ticker and persist to price_history.
+
+    Runs in the background; returns immediately with a job receipt.
+    Duplicate dates are silently skipped (safe to call repeatedly).
+    """
+    stock = db.query(Stock).filter(Stock.ticker == ticker.upper()).first()
+    if not stock:
+        raise HTTPException(404, f"Ticker '{ticker.upper()}' not found in stocks table")
+
+    def _run():
+        from app.database import SessionLocal
+        from app.data.price_fetcher import fetch_and_store_price_history
+        with SessionLocal() as session:
+            try:
+                result = fetch_and_store_price_history(ticker.upper(), session, days=days)
+                log.info("[sync-price-history] %s done: %s", ticker.upper(), result)
+            except Exception as exc:
+                log.error("[sync-price-history] %s failed: %s", ticker.upper(), exc)
+
+    background_tasks.add_task(_run)
+    return {
+        "status":  "queued",
+        "ticker":  ticker.upper(),
+        "days":    days,
+        "message": f"Downloading {days}d of daily OHLCV in background",
+    }
 
 
 @router.get("/{ticker}/insiders")
