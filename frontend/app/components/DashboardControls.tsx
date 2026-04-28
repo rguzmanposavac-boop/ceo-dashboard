@@ -53,16 +53,20 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function IntervalSelect({
+  id,
   value,
   onChange,
   disabled,
 }: {
+  id: string;
   value: RefreshInterval;
   onChange: (v: RefreshInterval) => void;
   disabled?: boolean;
 }) {
   return (
     <select
+      id={id}
+      name={id}
       value={value}
       onChange={(e) => onChange(e.target.value as RefreshInterval)}
       disabled={disabled}
@@ -251,6 +255,7 @@ export function DashboardControls() {
             <SectionTitle>📈 Precios</SectionTitle>
             <div className="space-y-2">
               <IntervalSelect
+                id="price-refresh-interval"
                 value={cfg?.price_refresh_interval ?? "1hour"}
                 onChange={(v) => applyInterval("price_refresh_interval", v)}
                 disabled={updateConfig.isPending}
@@ -267,6 +272,7 @@ export function DashboardControls() {
             <SectionTitle>🎯 Scores</SectionTitle>
             <div className="space-y-2">
               <IntervalSelect
+                id="score-refresh-interval"
                 value={cfg?.score_refresh_interval ?? "1hour"}
                 onChange={(v) => applyInterval("score_refresh_interval", v)}
                 disabled={updateConfig.isPending}

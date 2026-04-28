@@ -82,6 +82,8 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
         </span>
 
         <select
+          id="filter-signal"
+          name="filter-signal"
           className="text-xs px-2 py-1 rounded text-text-primary focus:outline-none"
           style={{ background: "#111e35", border: "1px solid #1e3050" }}
           value={filters.signal}
@@ -93,6 +95,8 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
         </select>
 
         <select
+          id="filter-horizon"
+          name="filter-horizon"
           className="text-xs px-2 py-1 rounded text-text-primary focus:outline-none"
           style={{ background: "#111e35", border: "1px solid #1e3050" }}
           value={filters.horizon}
@@ -104,6 +108,8 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
         </select>
 
         <select
+          id="filter-sector"
+          name="filter-sector"
           className="text-xs px-2 py-1 rounded text-text-primary focus:outline-none"
           style={{ background: "#111e35", border: "1px solid #1e3050" }}
           value={filters.sector}
@@ -114,6 +120,8 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
         </select>
 
         <input
+          id="filter-min-score"
+          name="filter-min-score"
           type="number"
           placeholder="Score mín."
           className="text-xs px-2 py-1 rounded text-text-primary focus:outline-none w-24"
