@@ -179,6 +179,7 @@ export function PriceChart({ ticker }: Props) {
     queryKey: ["prices-tf", ticker, tf],
     queryFn:  () => api.stocks.pricesByTimeframe(ticker, tf),
     staleTime: tf === "1D" ? 60_000 : 5 * 60_000,
+    enabled: !!ticker,
     retry: 1,
   });
 

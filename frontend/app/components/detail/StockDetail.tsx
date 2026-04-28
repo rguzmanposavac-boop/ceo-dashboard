@@ -53,12 +53,14 @@ export function StockDetail({ ticker, onClose }: Props) {
     queryKey: ["stock", ticker],
     queryFn: () => api.stocks.get(ticker),
     staleTime: 60 * 1000,
+    enabled: !!ticker,
   });
 
   const { data: insiders } = useQuery<InsidersResponse>({
     queryKey: ["insiders", ticker],
     queryFn: () => api.stocks.insiders(ticker),
     staleTime: 10 * 60 * 1000,
+    enabled: !!ticker,
     retry: false,
   });
 

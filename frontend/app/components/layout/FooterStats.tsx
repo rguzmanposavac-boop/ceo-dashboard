@@ -64,44 +64,48 @@ function RefreshRow() {
     }
   };
 
-  const btnStyle = (loading: boolean) => ({
-    background:  loading ? "#1e3050" : "#5ba4ff18",
-    border:      "1px solid #5ba4ff44",
-    color:       loading ? "#7090b0" : "#5ba4ff",
-    cursor:      loading ? "not-allowed" as const : "pointer" as const,
-    opacity:     loading ? 0.7 : 1,
+  const btnStyle = (loading: boolean): React.CSSProperties => ({
+    background: loading ? "#1e3050" : "#5ba4ff18",
+    border:     "1px solid #5ba4ff44",
+    color:      loading ? "#7090b0" : "#5ba4ff",
+    cursor:     loading ? "not-allowed" : "pointer",
+    opacity:    loading ? 0.7 : 1,
   });
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-6 gap-y-2 pb-3 mb-3 border-b text-xs"
+      className="flex flex-wrap items-center gap-x-8 gap-y-2 pb-3 mb-3 border-b text-xs"
       style={{ borderColor: "#1e3050" }}
     >
       {/* Prices */}
-      <div className="flex items-center gap-2">
-        <span style={{ color: "#3a5070" }}>Precios:</span>
-        <span style={{ color: "#7090b0" }}>{relativeTime(refreshConfig?.last_price_update)}</span>
+      <div className="flex items-center gap-3">
+        <span style={{ color: "#3a5070" }}>
+          Última actualización:{" "}
+          <span style={{ color: "#7090b0" }}>{relativeTime(refreshConfig?.last_price_update)}</span>
+        </span>
         <button
           onClick={handleRefreshPrices}
           disabled={isRefreshingPrices}
           className="px-2 py-0.5 rounded transition-opacity"
           style={btnStyle(isRefreshingPrices)}
         >
-          {isRefreshingPrices ? "Actualizando…" : "↻ Actualizar precios"}
+          {isRefreshingPrices ? "Actualizando…" : "🔄 Actualizar precios"}
         </button>
       </div>
 
       {/* Scores */}
-      <div className="flex items-center gap-2">
-        <span style={{ color: "#3a5070" }}>Scores:</span>
-        <span style={{ color: "#7090b0" }}>{relativeTime(refreshConfig?.last_score_update)}</span>
+      <div className="flex items-center gap-3">
+        <span style={{ color: "#3a5070" }}>
+          Scores:{" "}
+          <span style={{ color: "#7090b0" }}>{relativeTime(refreshConfig?.last_score_update)}</span>
+        </span>
         <button
           onClick={handleRefreshScores}
           disabled={isRefreshingScores}
           className="px-2 py-0.5 rounded transition-opacity"
           style={btnStyle(isRefreshingScores)}
         >
-          {isRefreshingScores ? "Recalculando…" : "↻ Recalcular scores"}
+          {isRefreshingScores ? "Recalculando…" : "🔄 Recalcular scores"}
         </button>
       </div>
     </div>
