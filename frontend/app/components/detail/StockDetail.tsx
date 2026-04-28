@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { SIGNAL_COLORS, HORIZON_LABELS } from "@/lib/constants";
 import type { Stock, InsidersResponse, Catalyst } from "@/lib/types";
@@ -9,6 +9,17 @@ import { ScoreBar } from "@/app/components/shared/ScoreBar";
 import { PriceChart } from "./PriceChart";
 import { ScoreBreakdown } from "./ScoreBreakdown";
 import { InvalidatorsList } from "./InvalidatorsList";
+
+function relativeTime(ts: number | string): string {
+  const diffMs = Date.now() - (typeof ts === "string" ? new Date(ts).getTime() : ts);
+  if (diffMs < 0) return "ahora mismo";
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1)  return "hace un momento";
+  if (diffMin < 60) return `hace ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `hace ${diffH}h`;
+  return `hace ${Math.floor(diffH / 24)} días`;
+}
 
 interface Props {
   ticker: string;
@@ -36,7 +47,9 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function StockDetail({ ticker, onClose }: Props) {
-  const { data: stock, isLoading } = useQuery<Stock>({
+  const queryClient = useQueryClient();
+
+  const { data: stock, isLoading, dataUpdatedAt } = useQuery<Stock>({
     queryKey: ["stock", ticker],
     queryFn: () => api.stocks.get(ticker),
     staleTime: 60 * 1000,
@@ -121,6 +134,29 @@ export function StockDetail({ ticker, onClose }: Props) {
           )}
         </div>
         <PriceChart ticker={ticker} />
+        {/* Last updated + refresh */}
+        <div
+          className="flex items-center justify-between mt-2 pt-2 border-t"
+          style={{ borderColor: "#1e3050" }}
+        >
+          <span className="text-xs" style={{ color: "#3a5070" }}>
+            {dataUpdatedAt ? relativeTime(dataUpdatedAt) : "—"}
+          </span>
+          <button
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["stock", ticker] });
+              queryClient.invalidateQueries({ queryKey: ["prices-tf", ticker] });
+            }}
+            className="text-xs px-2 py-0.5 rounded transition-colors"
+            style={{
+              background: "#5ba4ff18",
+              border: "1px solid #5ba4ff44",
+              color: "#5ba4ff",
+            }}
+          >
+            ↻ Actualizar
+          </button>
+        </div>
       </Section>
 
       {/* Score summary */}

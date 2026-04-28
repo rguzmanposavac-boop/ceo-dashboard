@@ -1,8 +1,112 @@
 "use client";
 
+import { useReducer, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { ModelStats, TickerBacktestStat, TierStat } from "@/lib/types";
+import { useDashboardStore } from "@/stores/dashboardStore";
+
+function relativeTime(ts: string | null | undefined): string {
+  if (!ts) return "nunca";
+  const diffMs = Date.now() - new Date(ts).getTime();
+  if (diffMs < 0) return "ahora mismo";
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1)  return "hace un momento";
+  if (diffMin < 60) return `hace ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `hace ${diffH}h`;
+  return `hace ${Math.floor(diffH / 24)} días`;
+}
+
+function RefreshRow() {
+  const [, tick] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const queryClient = useQueryClient();
+  const {
+    refreshConfig,
+    isRefreshingPrices,
+    isRefreshingScores,
+    setIsRefreshingPrices,
+    setIsRefreshingScores,
+    patchRefreshConfig,
+  } = useDashboardStore();
+
+  const handleRefreshPrices = async () => {
+    setIsRefreshingPrices(true);
+    try {
+      await api.refresh.prices();
+      setTimeout(async () => {
+        const cfg = await api.config.getRefreshSchedule();
+        patchRefreshConfig({ last_price_update: cfg.last_price_update });
+        setIsRefreshingPrices(false);
+      }, 4000);
+    } catch {
+      setIsRefreshingPrices(false);
+    }
+  };
+
+  const handleRefreshScores = async () => {
+    setIsRefreshingScores(true);
+    try {
+      await api.refresh.scores();
+      setTimeout(async () => {
+        const cfg = await api.config.getRefreshSchedule();
+        patchRefreshConfig({ last_score_update: cfg.last_score_update });
+        queryClient.invalidateQueries({ queryKey: ["stocks"] });
+        setIsRefreshingScores(false);
+      }, 8000);
+    } catch {
+      setIsRefreshingScores(false);
+    }
+  };
+
+  const btnStyle = (loading: boolean) => ({
+    background:  loading ? "#1e3050" : "#5ba4ff18",
+    border:      "1px solid #5ba4ff44",
+    color:       loading ? "#7090b0" : "#5ba4ff",
+    cursor:      loading ? "not-allowed" as const : "pointer" as const,
+    opacity:     loading ? 0.7 : 1,
+  });
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-6 gap-y-2 pb-3 mb-3 border-b text-xs"
+      style={{ borderColor: "#1e3050" }}
+    >
+      {/* Prices */}
+      <div className="flex items-center gap-2">
+        <span style={{ color: "#3a5070" }}>Precios:</span>
+        <span style={{ color: "#7090b0" }}>{relativeTime(refreshConfig?.last_price_update)}</span>
+        <button
+          onClick={handleRefreshPrices}
+          disabled={isRefreshingPrices}
+          className="px-2 py-0.5 rounded transition-opacity"
+          style={btnStyle(isRefreshingPrices)}
+        >
+          {isRefreshingPrices ? "Actualizando…" : "↻ Actualizar precios"}
+        </button>
+      </div>
+
+      {/* Scores */}
+      <div className="flex items-center gap-2">
+        <span style={{ color: "#3a5070" }}>Scores:</span>
+        <span style={{ color: "#7090b0" }}>{relativeTime(refreshConfig?.last_score_update)}</span>
+        <button
+          onClick={handleRefreshScores}
+          disabled={isRefreshingScores}
+          className="px-2 py-0.5 rounded transition-opacity"
+          style={btnStyle(isRefreshingScores)}
+        >
+          {isRefreshingScores ? "Recalculando…" : "↻ Recalcular scores"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const TIER_ORDER = ["COMPRA_FUERTE", "COMPRA", "VIGILAR", "EVITAR"] as const;
 const TIER_COLOR: Record<string, string> = {
@@ -108,6 +212,9 @@ export function FooterStats() {
       style={{ background: "#0a0e1a", borderColor: "#1e3050" }}
     >
       <div className="max-w-screen-2xl mx-auto px-4 py-4">
+
+        {/* Refresh status + force-refresh buttons */}
+        <RefreshRow />
 
         {/* Stats row */}
         {isLoading ? (
