@@ -370,7 +370,7 @@ export function FooterStats() {
         )}
 
         {/* Disclaimer */}
-        <p className="mt-3 text-xs text-center" style={{ color: "#3a5070" }}>
+        <p className="mt-3 text-xs text-center" style={{ color: "#ff5e5e99" }}>
           ⚠ Este sistema es una herramienta de apoyo a la decisión. No constituye asesoría financiera.
           Los retornos históricos no garantizan resultados futuros. R²=
           {stats?.r_squared?.toFixed(2) ?? "0.61"} implica que el{" "}

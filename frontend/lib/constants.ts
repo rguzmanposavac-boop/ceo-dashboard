@@ -18,3 +18,12 @@ export const HORIZON_LABELS: Record<string, string> = {
   MEDIANO_PLAZO: "Mediano plazo",
   LARGO_PLAZO:   "Largo plazo",
 };
+
+// Top-3 CEO profiles per regime (from PROFILE_REGIME_SCORE in CLAUDE.md)
+export const FAVORED_CEO_PROFILES: Record<string, string[]> = {
+  CRISIS:  ["Racional Paciente", "Disciplinado Sistémico", "Paranoico Estratégico"],
+  BAJISTA: ["Racional Paciente", "Disciplinado Sistémico", "Paranoico Estratégico"],
+  NORMAL:  ["Visionario Analítico", "Disciplinado Sistémico", "Paranoico Estratégico"],
+  ALCISTA: ["Visionario Sistémico", "Visionario Analítico", "Narcisista Visionario"],
+  REBOTE:  ["Narcisista Visionario", "Visionario Sistémico", "Paranoico Estratégico"],
+};

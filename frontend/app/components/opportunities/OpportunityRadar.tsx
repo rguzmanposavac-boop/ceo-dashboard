@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import type { Stock, Signal, Horizon } from "@/lib/types";
+import { useQuery } from "@tanstack/react-query";
+import type { Stock, Signal, Horizon, Catalyst } from "@/lib/types";
 import { SIGNAL_COLORS, HORIZON_LABELS } from "@/lib/constants";
 import { SignalBadge } from "@/app/components/shared/SignalBadge";
 import { useDashboardStore } from "@/stores/dashboardStore";
+import { api } from "@/lib/api";
 
 interface Props {
   stocks: Stock[];
@@ -38,6 +40,17 @@ function scoreCell(v: number | null | undefined) {
 
 export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
   const { filters, setFilter, resetFilters } = useDashboardStore();
+
+  const { data: catalysts = [] } = useQuery<Catalyst[]>({
+    queryKey: ["catalysts"],
+    queryFn: api.catalysts.list,
+    staleTime: 5 * 60 * 1000,
+  });
+  const catalystById = useMemo(() => {
+    const m = new Map<number, Catalyst>();
+    catalysts.forEach((c) => m.set(c.id, c));
+    return m;
+  }, [catalysts]);
 
   const filtered = useMemo(() => {
     return stocks.filter((s) => {
@@ -140,6 +153,7 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
               <th className="px-4 py-3 text-right">Score</th>
               <th className="px-4 py-3">Señal</th>
               <th className="px-4 py-3">Horizonte</th>
+              <th className="px-4 py-3">Catalizador</th>
               <th className="px-4 py-3 text-right">Ret. Est.</th>
             </tr>
           </thead>
@@ -152,6 +166,9 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
                 retLow != null && retHigh != null
                   ? `${pct(retLow)} – ${pct(retHigh)}`
                   : "—";
+              const catalyst = stock.score?.catalyst_id
+                ? catalystById.get(stock.score.catalyst_id)
+                : undefined;
               const changePct = stock.change_pct;
               const changeColor =
                 changePct == null ? "#7090b0" : changePct >= 0 ? "#3de88a" : "#ff5e5e";
@@ -193,6 +210,21 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
                   </td>
                   <td className="px-4 py-3 text-xs text-text-secondary">
                     {stock.score?.horizon ? HORIZON_LABELS[stock.score.horizon] : "—"}
+                  </td>
+                  <td className="px-4 py-3 max-w-[160px]">
+                    {catalyst ? (
+                      <span
+                        className="text-xs truncate block max-w-full"
+                        style={{ color: "#5ba4ff" }}
+                        title={catalyst.name}
+                      >
+                        {catalyst.name.length > 28
+                          ? catalyst.name.slice(0, 28) + "…"
+                          : catalyst.name}
+                      </span>
+                    ) : (
+                      <span className="text-text-muted text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-xs font-mono text-text-secondary">
                     {retStr}

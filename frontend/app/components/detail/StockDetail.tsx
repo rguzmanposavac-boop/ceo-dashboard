@@ -161,6 +161,38 @@ export function StockDetail({ ticker, onClose }: Props) {
         </div>
       </Section>
 
+      {/* Investment thesis */}
+      {score?.signal && (
+        <Section title="Tesis de inversión">
+          <p className="text-xs leading-relaxed" style={{ color: "#7090b0" }}>
+            {score.signal === "COMPRA_FUERTE" || score.signal === "COMPRA"
+              ? `El modelo identifica una oportunidad en ${stock.ticker}`
+              : score.signal === "VIGILAR"
+              ? `${stock.ticker} está en seguimiento`
+              : `${stock.ticker} no cumple los criterios de entrada`}
+            {score.final_score != null && (
+              <> con score <span style={{ color: "#e0e6f0", fontWeight: 600 }}>{score.final_score.toFixed(1)}/100</span></>
+            )}
+            {score.regime && (
+              <> en régimen <span style={{ color: "#e0e6f0" }}>{score.regime}</span></>
+            )}
+            .{" "}
+            {catalyst && (
+              <>
+                Catalizador activo: <span style={{ color: "#5ba4ff" }}>{catalyst.name}</span>
+                {" "}(intensidad {catalyst.intensity_score}, ventana {catalyst.expected_window}).{" "}
+              </>
+            )}
+            {score.horizon && (
+              <>Horizonte recomendado: <span style={{ color: "#e0e6f0" }}>{HORIZON_LABELS[score.horizon]}</span>.</>
+            )}
+            {score.probability != null && (
+              <> Probabilidad estimada: <span style={{ color: "#e0e6f0" }}>{(score.probability * 100).toFixed(0)}%</span>.</>
+            )}
+          </p>
+        </Section>
+      )}
+
       {/* Score summary */}
       {score && (
         <Section title="Score total">

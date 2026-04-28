@@ -92,6 +92,12 @@ export function CatalystMonitor() {
                   {WINDOW_LABELS[cat.expected_window] || cat.expected_window}
                 </span>
               </div>
+              <span
+                className="inline-block text-xs px-1.5 py-0.5 rounded mb-2 font-mono"
+                style={{ background: "#1e3050", color: "#7090b0" }}
+              >
+                {cat.catalyst_type}
+              </span>
 
               <IntensityBar value={cat.intensity_score ?? 0} />
 

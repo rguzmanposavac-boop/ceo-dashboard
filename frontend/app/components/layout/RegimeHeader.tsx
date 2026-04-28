@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { REGIME_COLORS } from "@/lib/constants";
+import { REGIME_COLORS, FAVORED_CEO_PROFILES } from "@/lib/constants";
 import type { RegimeStatus, Stock } from "@/lib/types";
 
 const REGIME_LABELS: Record<string, string> = {
@@ -82,6 +82,22 @@ export function RegimeHeader({ stocks }: Props) {
                 style={{ background: "#ff5e5e20", color: "#ff5e5e", border: "1px solid #ff5e5e33" }}
               >
                 {s}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Favored CEO profiles */}
+        {regime?.regime && FAVORED_CEO_PROFILES[regime.regime] && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-text-secondary mr-1">CEOs:</span>
+            {FAVORED_CEO_PROFILES[regime.regime].map((p) => (
+              <span
+                key={p}
+                className="text-xs px-2 py-0.5 rounded-full"
+                style={{ background: "#5ba4ff15", color: "#5ba4ff", border: "1px solid #5ba4ff33" }}
+              >
+                {p}
               </span>
             ))}
           </div>
