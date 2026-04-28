@@ -90,6 +90,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------------------------
+# Auto-initialize database
+# ---------------------------------------------------------------------------
+
+from app.database import Base, engine
+from app.models import Stock, CEO, Catalyst, RegimeHistory, PriceCache, ScoreSnapshot, RefreshConfig, PriceHistory
+
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
+
+    from sqlalchemy import text
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        result = db.execute(text("SELECT COUNT(*) FROM stocks")).scalar()
+        if result == 0:
+            print("No data found. Running seed...")
+            from app.seed import seed_data
+            seed_data()
+            print("✅ Database seeded")
+        else:
+            print(f"✅ Database ready: {result} stocks found")
+    finally:
+        db.close()
+
+
+init_db()
+
+# ---------------------------------------------------------------------------
+# Routers
+# ---------------------------------------------------------------------------
+
 app.include_router(stocks.router)
 app.include_router(regime.router)
 app.include_router(catalysts.router)
