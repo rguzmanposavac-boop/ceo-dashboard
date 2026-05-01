@@ -26,9 +26,12 @@ def _get_price_data(ticker: str, db: Session) -> dict:
             .first()
         )
         if price_row:
+            # price_cache stores change_pct as decimal fraction (0.005 = 0.5%)
+            # multiply by 100 so the frontend receives a true percentage
+            chg = price_row.change_pct
             return {
                 "current_price": price_row.close_price,
-                "change_pct": price_row.change_pct,
+                "change_pct": round(chg * 100, 2) if chg is not None else None,
                 "volume": price_row.volume,
             }
 
