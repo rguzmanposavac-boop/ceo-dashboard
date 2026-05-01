@@ -95,7 +95,15 @@
       "Bash(curl -s http://localhost:8000/api/v1/catalysts/review-status)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npx tsc *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(npm run *)",
+      "Bash(xargs grep *)",
+      "PowerShell(docker info 2>&1)",
+      "PowerShell(docker context use desktop-linux)",
+      "PowerShell(docker compose -f \"C:\\\\Proyectos\\\\ceo-dashboard\\\\docker-compose.yml\" ps 2>&1)",
+      "PowerShell(docker context ls 2>&1)"
     ]
   }
 }
