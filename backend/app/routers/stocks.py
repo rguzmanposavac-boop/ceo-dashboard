@@ -16,6 +16,49 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/stocks", tags=["stocks"])
 
 
+def _get_price_data(ticker: str, db: Session) -> dict:
+    """Return latest price data: tries price_cache first, falls back to price_history."""
+    try:
+        price_row = (
+            db.query(PriceCache)
+            .filter(PriceCache.ticker == ticker)
+            .order_by(desc(PriceCache.price_date))
+            .first()
+        )
+        if price_row:
+            return {
+                "current_price": price_row.close_price,
+                "change_pct": price_row.change_pct,
+                "volume": price_row.volume,
+            }
+
+        # Fallback: price_history (fetch last 2 rows to compute change_pct)
+        hist_rows = (
+            db.query(PriceHistory)
+            .filter(PriceHistory.ticker == ticker)
+            .order_by(desc(PriceHistory.date))
+            .limit(2)
+            .all()
+        )
+        if not hist_rows:
+            return {"current_price": None, "change_pct": None, "volume": None}
+
+        latest = hist_rows[0]
+        prev = hist_rows[1] if len(hist_rows) > 1 else None
+        change_pct = None
+        if prev and prev.close and latest.close:
+            change_pct = round((latest.close - prev.close) / prev.close * 100, 4)
+
+        return {
+            "current_price": latest.close,
+            "change_pct": change_pct,
+            "volume": latest.volume,
+        }
+    except Exception as exc:
+        log.error("[price_data] %s failed: %s", ticker, exc)
+        return {"current_price": None, "change_pct": None, "volume": None}
+
+
 @router.get("")
 def list_stocks(
     signal: Optional[str] = Query(None),
@@ -45,12 +88,7 @@ def list_stocks(
 
         ceo = db.query(CEO).filter(CEO.stock_id == stock.id).first()
 
-        price_row = (
-            db.query(PriceCache)
-            .filter(PriceCache.ticker == stock.ticker)
-            .order_by(desc(PriceCache.price_date))
-            .first()
-        )
+        price_data = _get_price_data(stock.ticker, db)
 
         results.append({
             "ticker": stock.ticker,
@@ -60,8 +98,9 @@ def list_stocks(
             "market_cap_category": stock.market_cap_category,
             "exchange": stock.exchange,
             "universe_level": stock.universe_level,
-            "current_price": price_row.close_price if price_row else None,
-            "change_pct": price_row.change_pct if price_row else None,
+            "current_price": price_data["current_price"],
+            "change_pct": price_data["change_pct"],
+            "volume": price_data["volume"],
             "ceo": {
                 "name": ceo.name if ceo else None,
                 "profile": ceo.profile if ceo else None,
@@ -107,12 +146,7 @@ def get_stock(ticker: str, db: Session = Depends(get_db)):
     )
     ceo = db.query(CEO).filter(CEO.stock_id == stock.id).first()
 
-    price_row = (
-        db.query(PriceCache)
-        .filter(PriceCache.ticker == stock.ticker)
-        .order_by(desc(PriceCache.price_date))
-        .first()
-    )
+    price_data = _get_price_data(stock.ticker, db)
 
     return {
         "ticker": stock.ticker,
@@ -122,8 +156,9 @@ def get_stock(ticker: str, db: Session = Depends(get_db)):
         "market_cap_category": stock.market_cap_category,
         "exchange": stock.exchange,
         "universe_level": stock.universe_level,
-        "current_price": price_row.close_price if price_row else None,
-        "change_pct": price_row.change_pct if price_row else None,
+        "current_price": price_data["current_price"],
+        "change_pct": price_data["change_pct"],
+        "volume": price_data["volume"],
         "ceo": {
             "name": ceo.name,
             "profile": ceo.profile,
@@ -151,6 +186,22 @@ def get_stock(ticker: str, db: Session = Depends(get_db)):
             "probability": snapshot.probability if snapshot else None,
             "scored_at": snapshot.scored_at.isoformat() if snapshot else None,
         },
+    }
+
+
+@router.get("/{ticker}/current-price")
+def get_current_price(ticker: str, db: Session = Depends(get_db)):
+    """Return the latest price snapshot for a ticker. Never raises 500."""
+    stock = db.query(Stock).filter(Stock.ticker == ticker.upper()).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail=f"Ticker {ticker} no encontrado")
+
+    data = _get_price_data(ticker.upper(), db)
+    return {
+        "ticker": ticker.upper(),
+        "current_price": data["current_price"],
+        "price_change_percent": data["change_pct"],
+        "volume": data["volume"],
     }
 
 
