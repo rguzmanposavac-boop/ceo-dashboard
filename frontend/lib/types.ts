@@ -56,6 +56,7 @@ export interface Stock {
   universe_level: 1 | 2;
   current_price?: number | null;
   change_pct?: number | null;
+  volume?: number | null;
   ceo: CEOProfile | null;
   score: ScoreBreakdown | null;
 }
