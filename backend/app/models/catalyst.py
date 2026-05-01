@@ -17,3 +17,4 @@ class Catalyst(Base):
     is_active = Column(Boolean, default=True)
     detected_at = Column(DateTime, server_default=func.now())
     last_reviewed = Column(DateTime, nullable=True)
+    discount_pct = Column(Float, default=0.0)  # % subvaloración del catalizador en precio actual

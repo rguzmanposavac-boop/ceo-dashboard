@@ -103,7 +103,8 @@
       "PowerShell(docker info 2>&1)",
       "PowerShell(docker context use desktop-linux)",
       "PowerShell(docker compose -f \"C:\\\\Proyectos\\\\ceo-dashboard\\\\docker-compose.yml\" ps 2>&1)",
-      "PowerShell(docker context ls 2>&1)"
+      "PowerShell(docker context ls 2>&1)",
+      "PowerShell(docker exec ceo-dashboard-backend-1 python -m alembic upgrade head 2>&1)"
     ]
   }
 }

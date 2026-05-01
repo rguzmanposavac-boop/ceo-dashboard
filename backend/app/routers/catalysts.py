@@ -35,6 +35,7 @@ def _catalyst_to_dict(c: Catalyst) -> dict:
         "affected_tickers": c.affected_tickers,
         "intensity_score":  c.intensity_score,
         "expected_window":  c.expected_window,
+        "discount_pct":     c.discount_pct,
         "is_active":        c.is_active,
         "detected_at":      c.detected_at.isoformat() if c.detected_at else None,
         "last_reviewed":    c.last_reviewed.isoformat() if c.last_reviewed else None,

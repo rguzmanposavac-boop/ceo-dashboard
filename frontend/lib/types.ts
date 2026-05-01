@@ -69,6 +69,7 @@ export interface Catalyst {
   affected_tickers: string[];
   intensity_score: number;
   expected_window: "INMEDIATO" | "PROXIMO" | "FUTURO" | "INCIERTO";
+  discount_pct: number | null;
   is_active?: boolean;
   detected_at: string;
 }

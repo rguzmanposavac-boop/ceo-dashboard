@@ -121,6 +121,7 @@ CATALYSTS_SEED = [
         "affected_tickers": ["NVDA", "AVGO", "VRT", "CEG", "AMD", "SMCI", "GEV"],
         "intensity_score": 92,
         "window": "PROXIMO",
+        "discount_pct": 15.0,
     },
     {
         "name": "Aranceles Trump — Reshoring y Manufactura Doméstica",
@@ -133,6 +134,7 @@ CATALYSTS_SEED = [
         "affected_tickers": ["LMT", "RTX", "AVGO"],
         "intensity_score": 78,
         "window": "FUTURO",
+        "discount_pct": 20.0,
     },
     {
         "name": "Revolución GLP-1 — Obesidad, Diabetes, Cardiovascular",
@@ -145,6 +147,7 @@ CATALYSTS_SEED = [
         "affected_tickers": ["LLY", "VKTX", "SYK"],
         "intensity_score": 85,
         "window": "PROXIMO",
+        "discount_pct": 10.0,
     },
     {
         "name": "Renacimiento Nuclear — SMR y Demanda IA",
@@ -157,6 +160,7 @@ CATALYSTS_SEED = [
         "affected_tickers": ["CEG", "NEE", "GEV"],
         "intensity_score": 72,
         "window": "FUTURO",
+        "discount_pct": 25.0,
     },
     {
         "name": "Boom Defensa Global — OTAN y Conflictos Geopolíticos",
@@ -169,6 +173,7 @@ CATALYSTS_SEED = [
         "affected_tickers": ["LMT", "RTX", "AXON", "CRWD"],
         "intensity_score": 82,
         "window": "FUTURO",
+        "discount_pct": 18.0,
     },
 ]
 
@@ -215,6 +220,7 @@ def seed():
                 affected_tickers=data["affected_tickers"],
                 intensity_score=data["intensity_score"],
                 expected_window=data["window"],
+                discount_pct=data.get("discount_pct", 0.0),
                 is_active=True,
             )
             db.add(catalyst)

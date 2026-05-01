@@ -99,7 +99,14 @@ export function CatalystMonitor() {
                 {cat.catalyst_type}
               </span>
 
-              <IntensityBar value={cat.intensity_score ?? 0} />
+              <div className="flex items-center gap-4 mt-1">
+                <IntensityBar value={cat.intensity_score ?? 0} />
+                {cat.discount_pct != null && cat.discount_pct > 0 && (
+                  <span className="text-xs font-mono shrink-0" style={{ color: "#f5c542" }}>
+                    {cat.discount_pct.toFixed(0)}% desc.
+                  </span>
+                )}
+              </div>
 
               {cat.affected_sectors && cat.affected_sectors.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
