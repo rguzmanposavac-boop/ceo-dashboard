@@ -260,7 +260,6 @@ _INTRADAY = {"1D", "5D"}
 def _fetch_from_yfinance(ticker: str, timeframe: str) -> list[dict]:
     import yfinance as yf
     import pandas as pd
-
     period, interval = _TIMEFRAME_YFINANCE[timeframe]
     try:
         hist = yf.Ticker(ticker.upper()).history(
