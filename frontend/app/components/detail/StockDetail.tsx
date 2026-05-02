@@ -190,6 +190,9 @@ export function StockDetail({ ticker, onClose }: Props) {
               <> Probabilidad estimada: <span style={{ color: "#e0e6f0" }}>{(score.probability * 100).toFixed(0)}%</span>.</>
             )}
           </p>
+          <p className="text-xs mt-2 leading-relaxed" style={{ color: "#7090b0" }}>
+            <span className="font-semibold text-text-primary">Casos de riesgo:</span> Monitorear las condiciones de salida listadas abajo (ej. caída brusca de fundamentales, pico de volatilidad, etc).
+          </p>
         </Section>
       )}
 
@@ -267,8 +270,31 @@ export function StockDetail({ ticker, onClose }: Props) {
       {/* Insiders */}
       {insiders && insiders.transactions.length > 0 && (
         <Section title={`Insiders Form 4 (${insiders.count})`}>
-          <div className="space-y-1.5">
-            {insiders.transactions.slice(0, 5).map((txn, i) => {
+          {(() => {
+            const recentBuysCount = insiders.transactions.filter((t) => {
+              const isBuy = t.transaction_type?.toLowerCase().includes("p");
+              if (!isBuy) return false;
+              const dateStr = (t as any).transaction_date || (t as any).filing_date;
+              if (!dateStr) return false;
+              const diffMs = Date.now() - new Date(dateStr).getTime();
+              return diffMs <= 30 * 24 * 60 * 60 * 1000;
+            }).length;
+            const hasStrongInsiderSignal = recentBuysCount >= 3;
+
+            return (
+              <>
+                {hasStrongInsiderSignal && (
+                  <div className="mb-3 px-2 py-1.5 rounded flex items-center gap-2" style={{ background: "#3de88a15", border: "1px solid #3de88a33" }}>
+                    <span className="text-lg">🔥</span>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: "#3de88a" }}>SEÑAL FUERTE</p>
+                      <p className="text-xs" style={{ color: "#7090b0" }}>3+ compras directas en los últimos 30 días.</p>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  {insiders.transactions.slice(0, 5).map((txn, i) => {
+
               const isBuy = txn.transaction_type?.toLowerCase().includes("p");
               return (
                 <div
@@ -284,7 +310,7 @@ export function StockDetail({ ticker, onClose }: Props) {
                     <span style={{ color: isBuy ? "#3de88a" : "#ff5e5e" }}>
                       {txn.transaction_type}
                     </span>
-                    {txn.shares != null && (
+                  {txn.shares != null && (
                       <span className="text-text-secondary font-mono">
                         {txn.shares.toLocaleString()}
                       </span>
@@ -294,6 +320,9 @@ export function StockDetail({ ticker, onClose }: Props) {
               );
             })}
           </div>
+          </>
+          );
+        })()}
         </Section>
       )}
     </aside>

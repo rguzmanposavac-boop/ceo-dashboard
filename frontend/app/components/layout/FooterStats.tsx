@@ -371,11 +371,7 @@ export function FooterStats() {
 
         {/* Disclaimer */}
         <p className="mt-3 text-xs text-center" style={{ color: "#ff5e5e99" }}>
-          ⚠ Este sistema es una herramienta de apoyo a la decisión. No constituye asesoría financiera.
-          Los retornos históricos no garantizan resultados futuros. R²=
-          {stats?.r_squared?.toFixed(2) ?? "0.61"} implica que el{" "}
-          {stats?.r_squared != null ? Math.round((1 - stats.r_squared) * 100) : 39}%
-          de la varianza depende de factores externos al modelo.
+          ⚠ Este sistema es una herramienta de apoyo a la decisión. No constituye asesoría financiera profesional. Los retornos pasados no garantizan futuros. Consulte con un asesor calificado antes de invertir.
         </p>
       </div>
     </footer>

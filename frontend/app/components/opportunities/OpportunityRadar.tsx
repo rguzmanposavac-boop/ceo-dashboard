@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Stock, Signal, Horizon, Catalyst } from "@/lib/types";
 import { SIGNAL_COLORS, HORIZON_LABELS } from "@/lib/constants";
@@ -40,6 +40,17 @@ function scoreCell(v: number | null | undefined) {
 
 export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
   const { filters, setFilter, resetFilters } = useDashboardStore();
+  const [sortField, setSortField] = useState<"score" | "ticker" | "change_pct">("score");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: "score" | "ticker" | "change_pct") => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir(field === "ticker" ? "asc" : "desc");
+    }
+  };
 
   const { data: catalysts = [] } = useQuery<Catalyst[]>({
     queryKey: ["catalysts"],
@@ -53,14 +64,33 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
   }, [catalysts]);
 
   const filtered = useMemo(() => {
-    return stocks.filter((s) => {
+    const list = stocks.filter((s) => {
       if (filters.signal && s.score?.signal !== filters.signal) return false;
       if (filters.horizon && s.score?.horizon !== filters.horizon) return false;
       if (filters.sector && s.sector !== filters.sector) return false;
       if (filters.min_score != null && (s.score?.final_score ?? 0) < filters.min_score) return false;
       return true;
     });
-  }, [stocks, filters]);
+    
+    list.sort((a, b) => {
+      let aVal: any, bVal: any;
+      if (sortField === "score") {
+        aVal = a.score?.final_score ?? -1;
+        bVal = b.score?.final_score ?? -1;
+      } else if (sortField === "ticker") {
+        aVal = a.ticker;
+        bVal = b.ticker;
+      } else if (sortField === "change_pct") {
+        aVal = a.change_pct ?? -999;
+        bVal = b.change_pct ?? -999;
+      }
+      if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return list;
+  }, [stocks, filters, sortField, sortDir]);
 
   const sectors = useMemo(() => {
     const set = new Set(stocks.map((s) => s.sector));
@@ -153,12 +183,18 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
               className="text-left text-xs text-text-secondary uppercase tracking-wider"
               style={{ borderBottom: "1px solid #1e3050" }}
             >
-              <th className="px-4 py-3">Ticker</th>
+              <th className="px-4 py-3 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("ticker")}>
+                Ticker {sortField === "ticker" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+              </th>
               <th className="px-4 py-3">Empresa</th>
               <th className="px-4 py-3">Sector</th>
               <th className="px-4 py-3 text-right">Precio</th>
-              <th className="px-4 py-3 text-right">Var%</th>
-              <th className="px-4 py-3 text-right">Score</th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("change_pct")}>
+                Var% {sortField === "change_pct" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+              </th>
+              <th className="px-4 py-3 text-right cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("score")}>
+                Score {sortField === "score" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+              </th>
               <th className="px-4 py-3">Señal</th>
               <th className="px-4 py-3">Horizonte</th>
               <th className="px-4 py-3">Catalizador</th>
