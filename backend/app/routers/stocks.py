@@ -11,6 +11,7 @@ from app.models.price_history import PriceHistory
 from app.models.ceo import CEO
 from app.models.score import ScoreSnapshot
 from app.data.sec_fetcher import fetch_insider_transactions
+from app.data.price_fetcher import fetch_current_price
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/stocks", tags=["stocks"])
@@ -44,6 +45,27 @@ def _get_price_data(ticker: str, db: Session) -> dict:
             .all()
         )
         if not hist_rows:
+            # Fallback final: try live fetch if both price_cache and price_history are empty.
+            try:
+                live = fetch_current_price(ticker)
+                if live and live.get("price") is not None:
+                    cache_row = PriceCache(
+                        ticker=ticker,
+                        price_date=live["price_date"],
+                        close_price=live["price"],
+                        volume=live["volume"],
+                        change_pct=live["change_pct"],
+                        fetched_at=datetime.utcnow(),
+                    )
+                    db.add(cache_row)
+                    db.commit()
+                    return {
+                        "current_price": live["price"],
+                        "change_pct": round(live["change_pct"] * 100, 2) if live["change_pct"] is not None else None,
+                        "volume": live["volume"],
+                    }
+            except Exception as exc:
+                log.warning("[price_data] live fetch fallback failed for %s: %s", ticker, exc)
             return {"current_price": None, "change_pct": None, "volume": None}
 
         latest = hist_rows[0]
