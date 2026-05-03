@@ -13,15 +13,13 @@ interface Toast {
 }
 
 export function NotificationCenter({ stocks }: { stocks: Stock[] }) {
-  const { data: invalidatorData } = useQuery(
-    ["invalidators", "summary"],
-    () => api.invalidators.check(),
-    {
-      refetchInterval: 10 * 60 * 1000,
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-    }
-  );
+  const { data: invalidatorData } = useQuery({
+    queryKey: ["invalidators", "summary"],
+    queryFn: () => api.invalidators.check(),
+    refetchInterval: 60000,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const notifiedRef = useRef<Set<string>>(new Set());
