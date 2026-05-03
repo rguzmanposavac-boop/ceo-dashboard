@@ -24,6 +24,13 @@ export interface InvalidatorAlert {
   action_recommendation: string;
 }
 
+export interface StockInvalidator {
+  name: string;
+  active: boolean;
+  description: string;
+  activated_at: string;
+}
+
 export interface CandidateEvaluation {
   ticker: string;
   company: string;

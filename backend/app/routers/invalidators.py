@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 
@@ -11,6 +11,7 @@ from app.security import require_api_key
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/invalidators", tags=["invalidators"])
+stock_invalidators_router = APIRouter()
 
 RECOMMENDATION_BY_KEY = {
     "REGIMEN_CHANGE": "Revisar el régimen macro y ajustar exposición",
@@ -66,3 +67,34 @@ def check_invalidators(db: Session = Depends(get_db)):
     if active:
         db.commit()
     return {"count": len(active), "invalidators": active}
+
+
+@stock_invalidators_router.get("/api/v1/stocks/{ticker}/invalidators")
+def get_stock_invalidators(ticker: str, db: Session = Depends(get_db)):
+    ticker = ticker.upper()
+    rows = (
+        db.query(InvalidatorLog)
+        .filter(InvalidatorLog.ticker == ticker)
+        .order_by(desc(InvalidatorLog.triggered_at))
+        .all()
+    )
+
+    if not rows:
+        return {"ticker": ticker, "invalidators": []}
+
+    latest_by_key = {}
+    for entry in rows:
+        if entry.invalidator_key not in latest_by_key:
+            latest_by_key[entry.invalidator_key] = entry
+
+    invalidators = [
+        {
+            "name": row.invalidator_key,
+            "active": row.active,
+            "description": row.description,
+            "activated_at": row.triggered_at.isoformat(),
+        }
+        for row in latest_by_key.values()
+    ]
+
+    return {"ticker": ticker, "invalidators": invalidators}

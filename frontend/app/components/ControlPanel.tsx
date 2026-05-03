@@ -113,7 +113,7 @@ export function ControlPanel() {
     try {
       await api.refresh.prices();
       setMessage("Actualización de precios en curso");
-      setTimeout(() => queryClient.invalidateQueries(["refresh-config"]), 4000);
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["refresh-config"] }), 4000);
     } catch (error) {
       setMessage("Error actualizando precios");
     }
@@ -124,8 +124,8 @@ export function ControlPanel() {
     try {
       await api.refresh.scores();
       setMessage("Recalculando scores en curso");
-      queryClient.invalidateQueries(["stocks"]);
-      setTimeout(() => queryClient.invalidateQueries(["refresh-config"]), 8000);
+      queryClient.invalidateQueries({ queryKey: ["stocks"] });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["refresh-config"] }), 8000);
     } catch (error) {
       setMessage("Error recalculando scores");
     }
@@ -136,7 +136,7 @@ export function ControlPanel() {
     try {
       await api.regime.refreshVix();
       setMessage("Refresco de régimen iniciado");
-      queryClient.invalidateQueries(["regime"]);
+      queryClient.invalidateQueries({ queryKey: ["regime"] });
     } catch (error) {
       setMessage("Error al actualizar VIX");
     }
@@ -198,13 +198,13 @@ export function ControlPanel() {
 
             <Section title="Acciones manuales">
               <div className="grid gap-2">
-                <ActionButton onClick={handleRefreshVixNow} disabled={updateConfigMutation.isLoading}>
+                <ActionButton onClick={handleRefreshVixNow} disabled={updateConfigMutation.status === "pending"}>
                   Actualizar régimen/VIX ahora
                 </ActionButton>
-                <ActionButton onClick={handlePriceRefreshNow} disabled={updateConfigMutation.isLoading}>
+                <ActionButton onClick={handlePriceRefreshNow} disabled={updateConfigMutation.status === "pending"}>
                   Actualizar precios ahora
                 </ActionButton>
-                <ActionButton onClick={handleScoreRefreshNow} disabled={updateConfigMutation.isLoading}>
+                <ActionButton onClick={handleScoreRefreshNow} disabled={updateConfigMutation.status === "pending"}>
                   Recalcular scores ahora
                 </ActionButton>
               </div>
@@ -214,10 +214,10 @@ export function ControlPanel() {
           <div className="grid gap-4 md:grid-cols-2">
             <Section title="Evaluaciones">
               <div className="grid gap-2">
-                <ActionButton onClick={handleEvaluateCandidates} disabled={updateConfigMutation.isLoading}>
+                <ActionButton onClick={handleEvaluateCandidates} disabled={updateConfigMutation.status === "pending"}>
                   Evaluar candidatos retail
                 </ActionButton>
-                <ActionButton onClick={handleCheckInvalidators} disabled={updateConfigMutation.isLoading}>
+                <ActionButton onClick={handleCheckInvalidators} disabled={updateConfigMutation.status === "pending"}>
                   Chequear invalidadores
                 </ActionButton>
               </div>

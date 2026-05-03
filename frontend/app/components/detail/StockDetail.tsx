@@ -3,12 +3,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { SIGNAL_COLORS, HORIZON_LABELS } from "@/lib/constants";
-import type { Stock, InsidersResponse, Catalyst } from "@/lib/types";
+import type { Stock, InsidersResponse, Catalyst, StockInvalidator } from "@/lib/types";
 import { SignalBadge } from "@/app/components/shared/SignalBadge";
 import { ScoreBar } from "@/app/components/shared/ScoreBar";
 import { PriceChart } from "./PriceChart";
 import { ScoreBreakdown } from "./ScoreBreakdown";
-import { InvalidatorsList } from "./InvalidatorsList";
 import { ScoreEvolution } from "@/app/components/ScoreEvolution";
 
 function relativeTime(ts: number | string): string {
@@ -50,26 +49,44 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export function StockDetail({ ticker, onClose }: Props) {
   const queryClient = useQueryClient();
 
-  const { data: stock, isLoading, dataUpdatedAt } = useQuery<Stock>({
-    queryKey: ["stock", ticker],
-    queryFn: () => api.stocks.get(ticker),
-    staleTime: 60 * 1000,
-    enabled: !!ticker,
-  });
+  const { data: stock, isLoading, dataUpdatedAt } = useQuery<Stock>(
+    {
+      queryKey: ["stock", ticker],
+      queryFn: () => api.stocks.get(ticker),
+      staleTime: 60 * 1000,
+      enabled: !!ticker,
+    }
+  );
 
-  const { data: insiders } = useQuery<InsidersResponse>({
-    queryKey: ["insiders", ticker],
-    queryFn: () => api.stocks.insiders(ticker),
-    staleTime: 10 * 60 * 1000,
-    enabled: !!ticker,
-    retry: false,
-  });
+  const { data: insiders } = useQuery<InsidersResponse>(
+    {
+      queryKey: ["insiders", ticker],
+      queryFn: () => api.stocks.insiders(ticker),
+      staleTime: 10 * 60 * 1000,
+      enabled: !!ticker,
+      retry: false,
+    }
+  );
 
-  const { data: catalysts } = useQuery<Catalyst[]>({
-    queryKey: ["catalysts"],
-    queryFn: api.catalysts.list,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: catalysts } = useQuery<Catalyst[]>(
+    {
+      queryKey: ["catalysts"],
+      queryFn: api.catalysts.list,
+      staleTime: 5 * 60 * 1000,
+    }
+  );
+
+  const { data: invalidatorResponse } = useQuery<{
+    ticker: string;
+    invalidators: StockInvalidator[];
+  }>(
+    {
+      queryKey: ["stock", ticker, "invalidators"],
+      queryFn: () => api.stocks.invalidators(ticker),
+      staleTime: 60 * 1000,
+      enabled: !!ticker,
+    }
+  );
 
   if (isLoading) {
     return (
@@ -92,6 +109,7 @@ export function StockDetail({ ticker, onClose }: Props) {
   const signalColor = score?.signal ? SIGNAL_COLORS[score.signal] : "#7090b0";
   const catalyst = catalysts?.find((c) => c.id === score?.catalyst_id);
   const catalystName = score?.catalyst_name ?? catalyst?.name;
+  const invalidators = invalidatorResponse?.invalidators ?? [];
 
   const retStr =
     score?.expected_return_low != null && score?.expected_return_high != null
@@ -138,7 +156,6 @@ export function StockDetail({ ticker, onClose }: Props) {
           )}
         </div>
         <PriceChart ticker={ticker} />
-        {/* Last updated + refresh */}
         <div
           className="flex items-center justify-between mt-2 pt-2 border-t"
           style={{ borderColor: "#1e3050" }}
@@ -198,7 +215,6 @@ export function StockDetail({ ticker, onClose }: Props) {
         </Section>
       )}
 
-      {/* Score summary */}
       {score && (
         <Section title="Score total">
           <div className="flex items-center gap-3 mb-3">
@@ -215,23 +231,19 @@ export function StockDetail({ ticker, onClose }: Props) {
             </div>
           </div>
 
-          {/* Score bars */}
           <div className="space-y-2 mb-4">
             <ScoreBar value={score.core_total} label="Core total" />
             <ScoreBar value={score.catalyst_total} label="Catalyst total" />
           </div>
 
-          {/* Radar chart */}
           <ScoreBreakdown score={score} />
 
-          {/* Score history */}
           <div className="mt-4">
             <ScoreEvolution ticker={ticker} />
           </div>
         </Section>
       )}
 
-      {/* Catalyst */}
       {catalyst && (
         <Section title="Catalizador activo">
           <div
@@ -248,14 +260,58 @@ export function StockDetail({ ticker, onClose }: Props) {
         </Section>
       )}
 
-      {/* Invalidators */}
-      {score?.invalidators && score.invalidators.length > 0 && (
-        <Section title="">
-          <InvalidatorsList invalidators={score.invalidators} />
+      {invalidators.length > 0 && (
+        <Section title="⚠️ Invalidadores activos">
+          <div
+            className="overflow-x-auto rounded-xl border px-2 py-2"
+            style={{ background: "rgba(239, 68, 68, 0.05)", borderColor: "#ff8c4244" }}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-text-secondary uppercase text-[11px] tracking-wider">
+                  <th className="px-3 py-2">Invalidador</th>
+                  <th className="px-3 py-2">Estado</th>
+                  <th className="px-3 py-2">Descripción</th>
+                  <th className="px-3 py-2 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invalidators.map((inv) => (
+                  <tr key={inv.name} className="border-t border-[#1e3050]">
+                    <td className="px-3 py-2 text-text-primary font-semibold">{inv.name}</td>
+                    <td className="px-3 py-2">
+                      {inv.active ? (
+                        <span className="text-[#3de88a]">✓ Activo</span>
+                      ) : (
+                        <span className="text-[#ff5e5e]">✗ Inactivo</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-text-secondary">{inv.description}</td>
+                    <td className="px-3 py-2 text-right">
+                      {inv.active ? (
+                        <button
+                          type="button"
+                          className="rounded px-2 py-1 text-[11px] font-semibold"
+                          style={{
+                            background: "rgba(239, 68, 68, 0.12)",
+                            color: "#ef4444",
+                            border: "1px solid rgba(239, 68, 68, 0.22)",
+                          }}
+                        >
+                          ⚡ Salir de posición
+                        </button>
+                      ) : (
+                        <span className="text-text-secondary">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Section>
       )}
 
-      {/* CEO */}
       {stock.ceo && (
         <Section title="CEO">
           <Row label="Nombre" value={stock.ceo.name} />
@@ -274,7 +330,6 @@ export function StockDetail({ ticker, onClose }: Props) {
         </Section>
       )}
 
-      {/* Insiders */}
       {insiders && insiders.transactions.length > 0 && (
         <Section title={`Insiders Form 4 (${insiders.count})`}>
           {(() => {
@@ -301,35 +356,34 @@ export function StockDetail({ ticker, onClose }: Props) {
                 )}
                 <div className="space-y-1.5">
                   {insiders.transactions.slice(0, 5).map((txn, i) => {
-
-              const isBuy = txn.transaction_type?.toLowerCase().includes("p");
-              return (
-                <div
-                  key={i}
-                  className="text-xs flex justify-between items-center p-2 rounded"
-                  style={{ background: "#111e35" }}
-                >
-                  <div>
-                    <span className="text-text-primary">{txn.insider_name}</span>
-                    {txn.title && <span className="text-text-muted ml-1">({txn.title})</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: isBuy ? "#3de88a" : "#ff5e5e" }}>
-                      {txn.transaction_type}
-                    </span>
-                  {txn.shares != null && (
-                      <span className="text-text-secondary font-mono">
-                        {txn.shares.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
+                    const isBuy = txn.transaction_type?.toLowerCase().includes("p");
+                    return (
+                      <div
+                        key={i}
+                        className="text-xs flex justify-between items-center p-2 rounded"
+                        style={{ background: "#111e35" }}
+                      >
+                        <div>
+                          <span className="text-text-primary">{txn.insider_name}</span>
+                          {txn.title && <span className="text-text-muted ml-1">({txn.title})</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span style={{ color: isBuy ? "#3de88a" : "#ff5e5e" }}>
+                            {txn.transaction_type}
+                          </span>
+                          {txn.shares != null && (
+                            <span className="text-text-secondary font-mono">
+                              {txn.shares.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-          </>
-          );
-        })()}
+              </>
+            );
+          })()}
         </Section>
       )}
     </aside>

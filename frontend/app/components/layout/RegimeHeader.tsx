@@ -32,7 +32,7 @@ export function RegimeHeader({ stocks }: Props) {
   const mutation = useMutation({
     mutationFn: api.regime.refreshVix,
     onSuccess: () => {
-      queryClient.invalidateQueries(["regime"]);
+      queryClient.invalidateQueries({ queryKey: ["regime"] });
     },
   });
 
@@ -122,7 +122,7 @@ export function RegimeHeader({ stocks }: Props) {
           <button
             type="button"
             onClick={() => mutation.mutate()}
-            disabled={mutation.isLoading}
+            disabled={mutation.status === "pending"}
             className="text-xs rounded px-3 py-1"
             style={{
               background: "#5ba4ff18",
@@ -130,7 +130,7 @@ export function RegimeHeader({ stocks }: Props) {
               color: "#5ba4ff",
             }}
           >
-            {mutation.isLoading ? "Actualizando…" : "Actualizar VIX"}
+            {mutation.status === "pending" ? "Actualizando…" : "Actualizar VIX"}
           </button>
         </div>
       </div>

@@ -39,6 +39,15 @@ function scoreCell(v: number | null | undefined) {
   );
 }
 
+function invalidatorSummary(stock: Stock) {
+  const invalidators = stock.score?.invalidators;
+  if (!invalidators || invalidators.length === 0) return null;
+  const keys = invalidators.map((item) =>
+    typeof item === "string" ? item : item.key ?? String(item)
+  );
+  return `${keys.length} invalidadores activos: ${keys.join(", ")}`;
+}
+
 export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
   const { filters, setFilter, resetFilters } = useDashboardStore();
   const [sortField, setSortField] = useState<"score" | "ticker" | "change_pct">("score");
@@ -251,6 +260,9 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
               const changePct = stock.change_pct;
               const changeColor =
                 changePct == null ? "#7090b0" : changePct >= 0 ? "#3de88a" : "#ff5e5e";
+              const invalidatorCount = stock.score?.invalidators?.length ?? 0;
+              const hasInvalidators = invalidatorCount > 0;
+              const invalidatorTooltip = hasInvalidators ? invalidatorSummary(stock) : "";
 
               return (
                 <tr
@@ -259,13 +271,18 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
                   className="cursor-pointer transition-colors"
                   style={{
                     borderBottom: "1px solid #1e3050",
-                    background: isSelected ? "#1a2d4a" : "transparent",
+                    background: isSelected
+                      ? "#1a2d4a"
+                      : hasInvalidators
+                      ? "rgba(239, 68, 68, 0.1)"
+                      : "transparent",
                   }}
                   onMouseEnter={(e) => {
                     if (!isSelected) (e.currentTarget as HTMLElement).style.background = "#111e35";
                   }}
                   onMouseLeave={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = "transparent";
+                    if (!isSelected) (e.currentTarget as HTMLElement).style.background =
+                      hasInvalidators ? "rgba(239, 68, 68, 0.1)" : "transparent";
                   }}
                 >
                   <td className="px-4 py-3">
@@ -280,7 +297,18 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
                     />
                   </td>
                   <td className="px-4 py-3 font-mono font-bold text-blue-400">
-                    {stock.ticker}
+                    <div className="inline-flex items-center gap-1">
+                      <span>{stock.ticker}</span>
+                      {hasInvalidators && (
+                        <span
+                          className="text-[#EF4444]"
+                          title={invalidatorTooltip ?? undefined}
+                          style={{ fontSize: 16, lineHeight: 1 }}
+                        >
+                          🚨
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-text-primary max-w-[180px] truncate">
                     {stock.company}

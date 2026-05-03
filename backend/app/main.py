@@ -132,6 +132,7 @@ app.include_router(config_router.router)
 app.include_router(prices.router)
 app.include_router(evaluation.router)
 app.include_router(invalidators.router)
+app.include_router(invalidators.stock_invalidators_router)
 app.include_router(refresh_router.router)
 
 

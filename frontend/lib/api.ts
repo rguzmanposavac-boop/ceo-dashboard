@@ -1,4 +1,4 @@
-import type { Stock, Catalyst, RegimeStatus, PricePoint, InsidersResponse, ModelStats, RefreshConfig, RefreshInterval } from "./types";
+import type { Stock, Catalyst, RegimeStatus, PricePoint, InsidersResponse, ModelStats, RefreshConfig, RefreshInterval, CandidateEvaluation, StockInvalidator } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -30,6 +30,7 @@ export const api = {
       return get<Stock[]>(`/api/v1/stocks${query}`);
     },
     get: (ticker: string) => get<Stock>(`/api/v1/stocks/${ticker}`),
+    invalidators: (ticker: string) => get<{ ticker: string; invalidators: StockInvalidator[] }>(`/api/v1/stocks/${ticker}/invalidators`),
     priceHistory: (ticker: string, limit = 90) =>
       get<PricePoint[]>(`/api/v1/stocks/${ticker}/price-history?limit=${limit}`),
     pricesByTimeframe: (ticker: string, timeframe: string) =>
@@ -42,6 +43,7 @@ export const api = {
   regime: {
     current: () => get<RegimeStatus>("/api/v1/regime/current"),
     history: (limit = 30) => get<RegimeStatus[]>(`/api/v1/regime/history?limit=${limit}`),
+    refreshVix: () => post<{ status: string; job: string; message: string }>("/api/v1/refresh/vix"),
   },
   catalysts: {
     list: () => get<Catalyst[]>("/api/v1/catalysts"),
@@ -56,6 +58,10 @@ export const api = {
       const qs = regime ? `?regime=${regime}` : "";
       return post<Record<string, unknown>>(`/api/v1/scores/${ticker}/compute${qs}`);
     },
+    history: (ticker: string, limit = 10) =>
+      get<Array<{ id: number; final_score: number; signal: string; horizon: string; core_total: number; catalyst_total: number; regime: string; invalidators: unknown[]; scored_at: string }>>(
+        `/api/v1/scores/${ticker}?limit=${limit}`
+      ),
   },
   admin: {
     modelStats: () => get<ModelStats>("/api/v1/admin/model-stats"),
@@ -96,18 +102,8 @@ export const api = {
       });
     },
   },
-  scores: {
-    compute: (ticker: string, regime?: string) => {
-      const qs = regime ? `?regime=${regime}` : "";
-      return post<Record<string, unknown>>(`/api/v1/scores/${ticker}/compute${qs}`);
-    },
-    history: (ticker: string, limit = 10) =>
-      get<Array<{ id: number; final_score: number; signal: string; horizon: string; core_total: number; catalyst_total: number; regime: string; invalidators: unknown[]; scored_at: string }>>(
-        `/api/v1/scores/${ticker}?limit=${limit}`
-      ),
-  },
   evaluate: {
-    candidates: () => post<{ count: number; candidates: Array<{ ticker: string; company: string; score: number; signal: string; should_enter: boolean }> }>(
+    candidates: () => post<{ count: number; candidates: CandidateEvaluation[] }>(
       "/api/v1/evaluate/candidates"
     ),
   },
