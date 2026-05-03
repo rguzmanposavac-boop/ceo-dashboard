@@ -293,6 +293,23 @@ def run_decision(
     db.commit()
     db.refresh(snapshot)
 
+    # Persist a normalized history row for fast score tracking and analytics
+    from app.models.score_history import ScoreHistory
+
+    history = ScoreHistory(
+        snapshot_id   = snapshot.id,
+        ticker        = snapshot.ticker,
+        scored_at     = snapshot.scored_at,
+        final_score   = snapshot.final_score,
+        signal        = snapshot.signal,
+        horizon       = snapshot.horizon,
+        core_total    = snapshot.core_total,
+        catalyst_total= snapshot.catalyst_total,
+        probability   = snapshot.probability,
+    )
+    db.add(history)
+    db.commit()
+
     log.info(
         "%s → final=%.1f signal=%s horizon=%s (core=%.1f cat=%.1f)",
         ticker, final_score, signal, horizon, core_total, catalyst_total,

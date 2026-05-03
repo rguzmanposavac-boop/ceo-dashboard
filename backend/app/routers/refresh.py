@@ -6,19 +6,15 @@ from app.security import require_api_key
 router = APIRouter(prefix="/api/v1/refresh", tags=["refresh"])
 
 
-@router.post("/prices", dependencies=[Depends(require_api_key)])
-def manual_refresh_prices(background_tasks: BackgroundTasks):
-    """Trigger an immediate price refresh in the background.
-
-    Returns instantly; the refresh runs asynchronously.
-    Check GET /api/v1/config/refresh-schedule → last_price_update for completion.
-    """
-    from app.scheduler import job_refresh_prices
-    background_tasks.add_task(job_refresh_prices)
+@router.post("/vix", dependencies=[Depends(require_api_key)])
+def manual_refresh_vix(background_tasks: BackgroundTasks):
+    """Trigger an immediate regime/VIX refresh in the background."""
+    from app.scheduler import job_refresh_regime
+    background_tasks.add_task(job_refresh_regime)
     return {
-        "status":  "queued",
-        "job":     "refresh_prices",
-        "message": "Price refresh started in background",
+        "status": "queued",
+        "job": "refresh_vix",
+        "message": "Regime/VIX refresh started in background",
     }
 
 

@@ -5,7 +5,9 @@ import { api } from "@/lib/api";
 import type { Stock } from "@/lib/types";
 import { useDashboardStore } from "@/stores/dashboardStore";
 import { RegimeHeader } from "@/app/components/layout/RegimeHeader";
-import { DashboardControls } from "@/app/components/DashboardControls";
+import { ControlPanel } from "@/app/components/ControlPanel";
+import { NotificationCenter } from "@/app/components/NotificationCenter";
+import { InvalidatorAlert } from "@/app/components/InvalidatorAlert";
 import { OpportunityRadar } from "@/app/components/opportunities/OpportunityRadar";
 import { StockDetail } from "@/app/components/detail/StockDetail";
 import { CatalystMonitor } from "@/app/components/catalysts/CatalystMonitor";
@@ -25,8 +27,12 @@ export default function DashboardPage() {
       {/* Zone 1 — Regime Header */}
       <RegimeHeader stocks={stocks} />
 
-      {/* Zone 1.5 — Refresh controls (collapsible) */}
-      <DashboardControls />
+      {/* Zone 1.5 — Control panel + alerts */}
+      <ControlPanel />
+      <NotificationCenter stocks={stocks} />
+      <div className="mx-auto w-full max-w-screen-2xl px-4">
+        <InvalidatorAlert onSelectTicker={(ticker) => selectTicker(ticker)} />
+      </div>
 
       {/* Main content */}
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 py-4 flex flex-col gap-4">

@@ -32,7 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import stocks, regime, catalysts, ceos, scores
 from app.routers import config as config_router
-from app.routers import refresh as refresh_router
+from app.routers import evaluation, invalidators, prices, refresh as refresh_router
 from app.security import require_api_key
 
 log = logging.getLogger(__name__)
@@ -129,6 +129,9 @@ app.include_router(catalysts.router)
 app.include_router(ceos.router)
 app.include_router(scores.router)
 app.include_router(config_router.router)
+app.include_router(prices.router)
+app.include_router(evaluation.router)
+app.include_router(invalidators.router)
 app.include_router(refresh_router.router)
 
 

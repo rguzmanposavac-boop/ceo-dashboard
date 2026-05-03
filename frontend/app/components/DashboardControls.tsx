@@ -159,6 +159,38 @@ export function DashboardControls() {
     if (fetchedConfig) setRefreshConfig(fetchedConfig);
   }, [fetchedConfig, setRefreshConfig]);
 
+  useEffect(() => {
+    const raw = window.localStorage.getItem("ceo-dashboard-refresh-config");
+    if (!raw) return;
+    try {
+      const saved = JSON.parse(raw) as Partial<RefreshConfig>;
+      if (saved.price_refresh_interval || saved.score_refresh_interval) {
+        setRefreshConfig({
+          price_refresh_interval: saved.price_refresh_interval ?? fetchedConfig?.price_refresh_interval ?? "manual",
+          score_refresh_interval: saved.score_refresh_interval ?? fetchedConfig?.score_refresh_interval ?? "manual",
+          catalyst_auto_review: saved.catalyst_auto_review ?? fetchedConfig?.catalyst_auto_review ?? true,
+          updated_at: fetchedConfig?.updated_at ?? null,
+          last_price_update: fetchedConfig?.last_price_update ?? null,
+          last_score_update: fetchedConfig?.last_score_update ?? null,
+        });
+      }
+    } catch {
+      // ignore invalid localStorage data
+    }
+  }, [fetchedConfig, setRefreshConfig]);
+
+  useEffect(() => {
+    if (!refreshConfig) return;
+    window.localStorage.setItem(
+      "ceo-dashboard-refresh-config",
+      JSON.stringify({
+        price_refresh_interval: refreshConfig.price_refresh_interval,
+        score_refresh_interval: refreshConfig.score_refresh_interval,
+        catalyst_auto_review: refreshConfig.catalyst_auto_review,
+      }),
+    );
+  }, [refreshConfig]);
+
   // ── Persist config change (debounced via useMutation) ────────
   const updateConfig = useMutation({
     mutationFn: (cfg: Pick<RefreshConfig, "price_refresh_interval" | "score_refresh_interval" | "catalyst_auto_review">) =>

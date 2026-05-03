@@ -9,6 +9,7 @@ import { ScoreBar } from "@/app/components/shared/ScoreBar";
 import { PriceChart } from "./PriceChart";
 import { ScoreBreakdown } from "./ScoreBreakdown";
 import { InvalidatorsList } from "./InvalidatorsList";
+import { ScoreEvolution } from "@/app/components/ScoreEvolution";
 
 function relativeTime(ts: number | string): string {
   const diffMs = Date.now() - (typeof ts === "string" ? new Date(ts).getTime() : ts);
@@ -90,6 +91,7 @@ export function StockDetail({ ticker, onClose }: Props) {
   const score = stock.score;
   const signalColor = score?.signal ? SIGNAL_COLORS[score.signal] : "#7090b0";
   const catalyst = catalysts?.find((c) => c.id === score?.catalyst_id);
+  const catalystName = score?.catalyst_name ?? catalyst?.name;
 
   const retStr =
     score?.expected_return_low != null && score?.expected_return_high != null
@@ -177,10 +179,10 @@ export function StockDetail({ ticker, onClose }: Props) {
               <> en régimen <span style={{ color: "#e0e6f0" }}>{score.regime}</span></>
             )}
             .{" "}
-            {catalyst && (
+            {catalystName && (
               <>
-                Catalizador activo: <span style={{ color: "#5ba4ff" }}>{catalyst.name}</span>
-                {" "}(intensidad {catalyst.intensity_score}, ventana {catalyst.expected_window}).{" "}
+                Catalizador activo: <span style={{ color: "#5ba4ff" }}>{catalystName}</span>
+                {" "}(intensidad {catalyst?.intensity_score ?? "—"}, ventana {catalyst?.expected_window ?? "—"}).{" "}
               </>
             )}
             {score.horizon && (
@@ -221,6 +223,11 @@ export function StockDetail({ ticker, onClose }: Props) {
 
           {/* Radar chart */}
           <ScoreBreakdown score={score} />
+
+          {/* Score history */}
+          <div className="mt-4">
+            <ScoreEvolution ticker={ticker} />
+          </div>
         </Section>
       )}
 

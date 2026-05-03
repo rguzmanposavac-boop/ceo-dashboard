@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { REGIME_COLORS, FAVORED_CEO_PROFILES } from "@/lib/constants";
 import type { RegimeStatus, Stock } from "@/lib/types";
@@ -27,6 +27,14 @@ export function RegimeHeader({ stocks }: Props) {
   const opportunityCount = stocks.filter(
     (s) => s.score?.signal === "COMPRA_FUERTE" || s.score?.signal === "COMPRA"
   ).length;
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: api.regime.refreshVix,
+    onSuccess: () => {
+      queryClient.invalidateQueries(["regime"]);
+    },
+  });
 
   const color = regime ? REGIME_COLORS[regime.regime] : "#7090b0";
   const label = regime ? REGIME_LABELS[regime.regime] : "—";
@@ -103,14 +111,27 @@ export function RegimeHeader({ stocks }: Props) {
           </div>
         )}
 
-        {/* Opportunity count */}
-        <div className="ml-auto flex items-center gap-2">
+        {/* Opportunity count + refresh */}
+        <div className="ml-auto flex flex-col items-end gap-2">
           <span
             className="text-sm font-semibold px-3 py-1 rounded-full"
             style={{ background: "#3de88a20", color: "#3de88a", border: "1px solid #3de88a44" }}
           >
             {opportunityCount} oportunidades activas
           </span>
+          <button
+            type="button"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isLoading}
+            className="text-xs rounded px-3 py-1"
+            style={{
+              background: "#5ba4ff18",
+              border: "1px solid #5ba4ff44",
+              color: "#5ba4ff",
+            }}
+          >
+            {mutation.isLoading ? "Actualizando…" : "Actualizar VIX"}
+          </button>
         </div>
       </div>
     </header>

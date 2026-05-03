@@ -7,6 +7,7 @@ import { SIGNAL_COLORS, HORIZON_LABELS } from "@/lib/constants";
 import { SignalBadge } from "@/app/components/shared/SignalBadge";
 import { useDashboardStore } from "@/stores/dashboardStore";
 import { api } from "@/lib/api";
+import { ComparisonModal } from "@/app/components/opportunities/ComparisonModal";
 
 interface Props {
   stocks: Stock[];
@@ -42,6 +43,8 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
   const { filters, setFilter, resetFilters } = useDashboardStore();
   const [sortField, setSortField] = useState<"score" | "ticker" | "change_pct">("score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [compareSet, setCompareSet] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const handleSort = (field: "score" | "ticker" | "change_pct") => {
     if (sortField === field) {
@@ -62,6 +65,22 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
     catalysts.forEach((c) => m.set(c.id, c));
     return m;
   }, [catalysts]);
+
+  const toggleCompare = (ticker: string) => {
+    setCompareSet((current) => {
+      if (current.includes(ticker)) {
+        return current.filter((item) => item !== ticker);
+      }
+      if (current.length < 2) {
+        return [...current, ticker];
+      }
+      return [ticker];
+    });
+  };
+
+  const compareStocks = compareSet
+    .map((ticker) => stocks.find((item) => item.ticker === ticker))
+    .filter((item): item is Stock => Boolean(item));
 
   const filtered = useMemo(() => {
     const list = stocks.filter((s) => {
@@ -170,9 +189,24 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
           </button>
         )}
 
-        <span className="ml-auto text-xs text-text-secondary">
-          {filtered.length} / {stocks.length} acciones
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-text-secondary">
+            {filtered.length} / {stocks.length} acciones
+          </span>
+          <button
+            type="button"
+            onClick={() => setCompareOpen(true)}
+            disabled={compareSet.length < 2}
+            className="text-xs rounded px-3 py-1"
+            style={{
+              background: compareSet.length < 2 ? "#1e3050" : "#5ba4ff18",
+              border: "1px solid #5ba4ff44",
+              color: compareSet.length < 2 ? "#7090b0" : "#5ba4ff",
+            }}
+          >
+            Comparar ({compareSet.length}/2)
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -183,6 +217,7 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
               className="text-left text-xs text-text-secondary uppercase tracking-wider"
               style={{ borderBottom: "1px solid #1e3050" }}
             >
+              <th className="px-4 py-3"> </th>
               <th className="px-4 py-3 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("ticker")}>
                 Ticker {sortField === "ticker" ? (sortDir === "asc" ? "↑" : "↓") : ""}
               </th>
@@ -233,6 +268,17 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
                     if (!isSelected) (e.currentTarget as HTMLElement).style.background = "transparent";
                   }}
                 >
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={compareSet.includes(stock.ticker)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleCompare(stock.ticker);
+                      }}
+                      className="h-4 w-4 rounded border-[#1e3050] text-blue-400 bg-[#111e35]"
+                    />
+                  </td>
                   <td className="px-4 py-3 font-mono font-bold text-blue-400">
                     {stock.ticker}
                   </td>
@@ -286,6 +332,12 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
           </tbody>
         </table>
       </div>
+      <ComparisonModal
+        open={compareOpen}
+        left={compareStocks[0]}
+        right={compareStocks[1]}
+        onClose={() => setCompareOpen(false)}
+      />
     </div>
   );
 }

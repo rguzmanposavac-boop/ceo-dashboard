@@ -17,6 +17,21 @@ export interface Invalidator {
   description: string;
 }
 
+export interface InvalidatorAlert {
+  ticker: string;
+  key: string;
+  description: string;
+  action_recommendation: string;
+}
+
+export interface CandidateEvaluation {
+  ticker: string;
+  company: string;
+  score: number;
+  signal: Signal;
+  should_enter: boolean;
+}
+
 export interface CEOProfile {
   name: string;
   profile: string;
@@ -38,6 +53,7 @@ export interface ScoreBreakdown {
   ceo_score?: number | null;
   roic_wacc_score?: number | null;
   catalyst_id?: number | null;
+  catalyst_name?: string | null;
   regime: Regime | null;
   invalidators?: Invalidator[] | null;
   expected_return_low?: number | null;

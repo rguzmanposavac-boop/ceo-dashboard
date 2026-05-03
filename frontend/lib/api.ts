@@ -83,6 +83,38 @@ export const api = {
         return r.json() as Promise<RefreshConfig>;
       });
     },
+    getPriceRefreshConfig: () => get<RefreshConfig>("/api/v1/config/price-refresh"),
+    updatePriceRefreshConfig: (body: { price_refresh_interval: RefreshInterval }) => {
+      const res = fetch(`${BASE}/api/v1/config/price-refresh`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return res.then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}: /api/v1/config/price-refresh`);
+        return r.json() as Promise<RefreshConfig>;
+      });
+    },
+  },
+  scores: {
+    compute: (ticker: string, regime?: string) => {
+      const qs = regime ? `?regime=${regime}` : "";
+      return post<Record<string, unknown>>(`/api/v1/scores/${ticker}/compute${qs}`);
+    },
+    history: (ticker: string, limit = 10) =>
+      get<Array<{ id: number; final_score: number; signal: string; horizon: string; core_total: number; catalyst_total: number; regime: string; invalidators: unknown[]; scored_at: string }>>(
+        `/api/v1/scores/${ticker}?limit=${limit}`
+      ),
+  },
+  evaluate: {
+    candidates: () => post<{ count: number; candidates: Array<{ ticker: string; company: string; score: number; signal: string; should_enter: boolean }> }>(
+      "/api/v1/evaluate/candidates"
+    ),
+  },
+  invalidators: {
+    check: () => post<{ count: number; invalidators: Array<{ ticker: string; key: string; description: string; action_recommendation: string }> }>(
+      "/api/v1/invalidators/check"
+    ),
   },
   refresh: {
     prices: () => post<{ status: string; job: string; message: string }>("/api/v1/refresh/prices"),
