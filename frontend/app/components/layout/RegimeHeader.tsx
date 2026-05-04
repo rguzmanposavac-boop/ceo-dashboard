@@ -33,6 +33,7 @@ export function RegimeHeader({ stocks }: Props) {
     mutationFn: api.regime.refreshVix,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["regime"] });
+      queryClient.invalidateQueries({ queryKey: ["vix"] });
     },
   });
 

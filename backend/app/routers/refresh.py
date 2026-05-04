@@ -18,6 +18,18 @@ def manual_refresh_vix(background_tasks: BackgroundTasks):
     }
 
 
+@router.post("/prices", dependencies=[Depends(require_api_key)])
+def manual_refresh_prices(background_tasks: BackgroundTasks):
+    """Trigger an immediate price refresh in the background."""
+    from app.scheduler import job_refresh_prices
+    background_tasks.add_task(job_refresh_prices)
+    return {
+        "status": "queued",
+        "job": "refresh_prices",
+        "message": "Price refresh started in background",
+    }
+
+
 @router.post("/scores", dependencies=[Depends(require_api_key)])
 def manual_refresh_scores(background_tasks: BackgroundTasks):
     """Trigger an immediate score refresh for all active stocks in the background."""

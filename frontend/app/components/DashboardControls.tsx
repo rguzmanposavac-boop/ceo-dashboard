@@ -224,6 +224,7 @@ export function DashboardControls() {
       setTimeout(async () => {
         const cfg = await api.config.getRefreshSchedule();
         patchRefreshConfig({ last_price_update: cfg.last_price_update });
+        queryClient.invalidateQueries({ queryKey: ["stocks"] });
         setIsRefreshingPrices(false);
       }, 4000);
     } catch {
