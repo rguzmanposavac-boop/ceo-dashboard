@@ -1,7 +1,9 @@
 export const SIGNAL_COLORS: Record<string, string> = {
   COMPRA_FUERTE: "#3de88a",
   COMPRA:        "#f5c542",
+  "COMPRA CON CAUTION": "#f59e0b",
   VIGILAR:       "#ff8c42",
+  SALIR:         "#ef4444",
   EVITAR:        "#ff5e5e",
 };
 

@@ -1,4 +1,4 @@
-export type Signal = "COMPRA_FUERTE" | "COMPRA" | "VIGILAR" | "EVITAR";
+export type Signal = "COMPRA_FUERTE" | "COMPRA" | "COMPRA CON CAUTION" | "VIGILAR" | "SALIR" | "EVITAR";
 export type RefreshInterval = "manual" | "1min" | "5min" | "1hour" | "daily";
 
 export interface RefreshConfig {
@@ -80,6 +80,10 @@ export interface Stock {
   current_price?: number | null;
   change_pct?: number | null;
   volume?: number | null;
+  trend_12m?: number | null;
+  trend_label?: string | null;
+  momentum_3m?: number | null;
+  momentum_label?: string | null;
   ceo: CEOProfile | null;
   score: ScoreBreakdown | null;
 }

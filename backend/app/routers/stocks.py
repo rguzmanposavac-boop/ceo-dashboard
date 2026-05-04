@@ -12,6 +12,7 @@ from app.models.ceo import CEO
 from app.models.score import ScoreSnapshot
 from app.data.sec_fetcher import fetch_insider_transactions
 from app.data.price_fetcher import fetch_current_price
+from app.routers.decision import get_price_trends, compute_final_signal
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/stocks", tags=["stocks"])
@@ -104,16 +105,33 @@ def list_stocks(
             .first()
         )
 
-        if signal and (not snapshot or snapshot.signal != signal):
+        ceo = db.query(CEO).filter(CEO.stock_id == stock.id).first()
+
+        price_data = _get_price_data(stock.ticker, db)
+
+        trends = get_price_trends(stock.id, price_data["current_price"] or 0.0)
+        invalidators_active = bool(snapshot and snapshot.invalidators and len(snapshot.invalidators) > 0)
+        final_score = (
+            snapshot.final_score
+            if snapshot and snapshot.final_score is not None
+            else round(
+                (snapshot.core_total or 0.0) * 0.65 + (snapshot.catalyst_total or 0.0) * 0.35,
+                2,
+            )
+        )
+        final_signal, _ = compute_final_signal(
+            final_score,
+            trends["trend_12m"],
+            trends["momentum_3m"],
+            invalidators_active,
+        )
+
+        if signal and final_signal != signal:
             continue
         if horizon and (not snapshot or snapshot.horizon != horizon):
             continue
         if min_score and (not snapshot or (snapshot.final_score or 0) < min_score):
             continue
-
-        ceo = db.query(CEO).filter(CEO.stock_id == stock.id).first()
-
-        price_data = _get_price_data(stock.ticker, db)
 
         results.append({
             "ticker": stock.ticker,
@@ -126,6 +144,10 @@ def list_stocks(
             "current_price": price_data["current_price"],
             "change_pct": price_data["change_pct"],
             "volume": price_data["volume"],
+            "trend_12m": trends["trend_12m"],
+            "trend_label": trends["trend_label"],
+            "momentum_3m": trends["momentum_3m"],
+            "momentum_label": trends["momentum_label"],
             "ceo": {
                 "name": ceo.name if ceo else None,
                 "profile": ceo.profile if ceo else None,
@@ -136,7 +158,7 @@ def list_stocks(
             } if ceo else None,
             "score": {
                 "final_score":         snapshot.final_score if snapshot else None,
-                "signal":              snapshot.signal if snapshot else None,
+                "signal":              final_signal,
                 "horizon":             snapshot.horizon if snapshot else None,
                 "core_total":          snapshot.core_total if snapshot else None,
                 "catalyst_total":      snapshot.catalyst_total if snapshot else None,
@@ -177,6 +199,22 @@ def get_stock(ticker: str, db: Session = Depends(get_db)):
     ceo = db.query(CEO).filter(CEO.stock_id == stock.id).first()
 
     price_data = _get_price_data(stock.ticker, db)
+    trends = get_price_trends(stock.id, price_data["current_price"] or 0.0)
+    invalidators_active = bool(snapshot and snapshot.invalidators and len(snapshot.invalidators) > 0)
+    final_score = (
+        snapshot.final_score
+        if snapshot and snapshot.final_score is not None
+        else round(
+            (snapshot.core_total or 0.0) * 0.65 + (snapshot.catalyst_total or 0.0) * 0.35,
+            2,
+        )
+    )
+    final_signal, _ = compute_final_signal(
+        final_score,
+        trends["trend_12m"],
+        trends["momentum_3m"],
+        invalidators_active,
+    )
 
     return {
         "ticker": stock.ticker,
@@ -189,6 +227,10 @@ def get_stock(ticker: str, db: Session = Depends(get_db)):
         "current_price": price_data["current_price"],
         "change_pct": price_data["change_pct"],
         "volume": price_data["volume"],
+        "trend_12m": trends["trend_12m"],
+        "trend_label": trends["trend_label"],
+        "momentum_3m": trends["momentum_3m"],
+        "momentum_label": trends["momentum_label"],
         "ceo": {
             "name": ceo.name,
             "profile": ceo.profile,
@@ -200,7 +242,7 @@ def get_stock(ticker: str, db: Session = Depends(get_db)):
         } if ceo else None,
         "score": {
             "final_score": snapshot.final_score if snapshot else None,
-            "signal": snapshot.signal if snapshot else None,
+            "signal": final_signal,
             "horizon": snapshot.horizon if snapshot else None,
             "core_total": snapshot.core_total if snapshot else None,
             "catalyst_total": snapshot.catalyst_total if snapshot else None,

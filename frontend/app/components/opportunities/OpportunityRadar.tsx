@@ -15,7 +15,7 @@ interface Props {
   selectedTicker: string | null;
 }
 
-const SIGNALS: Array<Signal | ""> = ["", "COMPRA_FUERTE", "COMPRA", "VIGILAR", "EVITAR"];
+const SIGNALS: Array<Signal | ""> = ["", "COMPRA_FUERTE", "COMPRA", "COMPRA CON CAUTION", "VIGILAR", "SALIR", "EVITAR"];
 const HORIZONS: Array<Horizon | ""> = ["", "CORTO_PLAZO", "MEDIANO_PLAZO", "LARGO_PLAZO"];
 
 function pct(v: number | null | undefined) {
@@ -236,6 +236,8 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
               <th className="px-4 py-3 text-right cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("change_pct")}>
                 Var% {sortField === "change_pct" ? (sortDir === "asc" ? "↑" : "↓") : ""}
               </th>
+              <th className="px-4 py-3 text-right">Tendencia 12M</th>
+              <th className="px-4 py-3 text-right">Momentum 3M</th>
               <th className="px-4 py-3 text-right cursor-pointer hover:text-white transition-colors" onClick={() => handleSort("score")}>
                 Score {sortField === "score" ? (sortDir === "asc" ? "↑" : "↓") : ""}
               </th>
@@ -322,6 +324,22 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
                       ? `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`
                       : "—"}
                   </td>
+                  <td className="px-4 py-3 text-xs" style={{
+                    color:
+                      (stock.trend_12m ?? 0) > 30 ? '#22c55e' : (stock.trend_12m ?? 0) < 0 ? '#ef4444' : '#9ca3af',
+                  }}>
+                    {stock.trend_12m != null
+                      ? `${stock.trend_12m > 0 ? '+' : ''}${stock.trend_12m.toFixed(1)}% (${stock.trend_label ?? '—'})`
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-xs" style={{
+                    color:
+                      (stock.momentum_3m ?? 0) > 10 ? '#22c55e' : (stock.momentum_3m ?? 0) < 0 ? '#ef4444' : '#9ca3af',
+                  }}>
+                    {stock.momentum_3m != null
+                      ? `${stock.momentum_3m > 0 ? '+' : ''}${stock.momentum_3m.toFixed(1)}% (${stock.momentum_label ?? '—'})`
+                      : '—'}
+                  </td>
                   <td className="px-4 py-3 text-right">{scoreCell(stock.score?.final_score)}</td>
                   <td className="px-4 py-3">
                     <SignalBadge signal={stock.score?.signal} size="sm" />
@@ -352,7 +370,7 @@ export function OpportunityRadar({ stocks, onSelect, selectedTicker }: Props) {
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-10 text-center text-text-secondary">
+                <td colSpan={13} className="px-4 py-10 text-center text-text-secondary">
                   No hay acciones con los filtros seleccionados
                 </td>
               </tr>
