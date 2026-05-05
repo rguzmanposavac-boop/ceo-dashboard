@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, String, BigInteger
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, String, BigInteger, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -29,3 +29,7 @@ class PriceCache(Base):
     volume = Column(BigInteger)
     change_pct = Column(Float)
     fetched_at = Column(DateTime)
+
+    __table_args__ = (
+        UniqueConstraint("ticker", "price_date", name="uq_price_cache_ticker_date"),
+    )
